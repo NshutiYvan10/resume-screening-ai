@@ -1,0 +1,29 @@
+# Java / Maven
+backend/target/
+*.class
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Python
+ai-service/.venv/
+ai-service/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Env & secrets
+.env
+backend/.env
+frontend/.env
+# Local dev credentials (DB password, SMTP app password) — never commit
+backend/src/main/resources/application-local.yml
+
+# Uploaded files
+backend/storage/
+storage/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

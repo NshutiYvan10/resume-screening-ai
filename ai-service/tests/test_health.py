@@ -1,0 +1,13 @@
+from fastapi.testclient import TestClient
+from main import app
+
+
+client = TestClient(app)
+
+
+def test_health():
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") == "online"
+    assert "service" in data
