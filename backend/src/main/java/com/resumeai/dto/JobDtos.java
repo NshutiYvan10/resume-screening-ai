@@ -103,8 +103,10 @@ public final class JobDtos {
     /** Public job card - no internal details like qualification weights. */
     public record PublicJobResponse(
             UUID id,
+            UUID companyId,
             String companyName,
             String companyIndustry,
+            String companyLogoUrl,
             String title,
             String department,
             String location,
@@ -124,8 +126,10 @@ public final class JobDtos {
         public static PublicJobResponse from(Job j) {
             return new PublicJobResponse(
                     j.getId(),
+                    j.getCompany().getId(),
                     j.getCompany().getName(),
                     j.getCompany().getIndustry(),
+                    CompanyDtos.mediaUrl(j.getCompany().getId(), j.getCompany().getLogoPath()),
                     j.getTitle(),
                     j.getDepartment(),
                     j.getLocation(),

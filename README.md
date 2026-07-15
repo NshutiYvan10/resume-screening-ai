@@ -112,6 +112,12 @@ mvn spring-boot:run
 
 API: <http://localhost:8080> · Swagger UI: <http://localhost:8080/swagger-ui.html>
 
+> **Auto-starting the AI service:** set `app.ai-service.auto-start=true` (enabled by default in the
+> `local` profile) and the backend launches the Python AI service as a child process on startup and
+> stops it on shutdown — so step 2 becomes optional in local dev. If an AI service is already running
+> on the configured port it is reused. Requires the `ai-service/.venv` to exist (`python3 -m venv .venv
+> && pip install -r requirements.txt`).
+
 ### 4. Frontend
 
 ```bash

@@ -43,10 +43,10 @@ public class JobService {
     @Transactional(readOnly = true)
     public PageResponse<PublicJobResponse> listPublic(String search, String location,
                                                       EmploymentType employmentType, WorkMode workMode,
-                                                      int page, int size) {
+                                                      UUID companyId, int page, int size) {
         return PageResponse.of(
                 jobRepository.searchPublicJobs(emptyToNull(search), emptyToNull(location),
-                        employmentType, workMode,
+                        employmentType, workMode, companyId,
                         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "publishedAt"))),
                 PublicJobResponse::from);
     }

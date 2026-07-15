@@ -1,19 +1,23 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, MapPin, Building2, Briefcase, GraduationCap, Calendar, Upload, FileText, X,
+  CheckCircle2, RotateCcw,
 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
-import { PageLoader, Field, Modal, Spinner } from '../../components/ui';
-import { formatSalary, formatDate, humanize } from '../../lib/format';
+import { useMyApplicationsMap } from '../../lib/useMyApplications';
+import { PageLoader, Field, Modal, Spinner, StatusPill } from '../../components/ui';
+import { APPLICATION_STATUS_STYLES, formatSalary, formatDate, humanize } from '../../lib/format';
 import type { PublicJob } from '../../types';
 
 export default function JobDetail() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [applyOpen, setApplyOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState('');
@@ -23,6 +27,12 @@ export default function JobDetail() {
     queryKey: ['public-job', jobId],
     queryFn: async () => (await api.get<PublicJob>(`/jobs/public/${jobId}`)).data,
   });
+
+  const { data: appliedMap } = useMyApplicationsMap();
+  const applied = jobId ? appliedMap?.[jobId] : undefined;
+  // A withdrawn application can be re-submitted; any other status is locked.
+  const canApply = !applied || applied.status === 'WITHDRAWN';
+  const isReapply = applied?.status === 'WITHDRAWN';
 
   const submitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +50,17 @@ export default function JobDetail() {
       });
       toast('Application submitted! Track it under My Applications.', 'success');
       setApplyOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['my-applications-map'] });
+      queryClient.invalidateQueries({ queryKey: ['my-applications'] });
       navigate('/candidate/applications');
     } catch (err) {
+      // The applied-status map is capped, so a candidate with a very large history
+      // could still hit "already applied" (409). Refresh the map so the UI corrects
+      // itself to the already-applied panel instead of showing a bare error.
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setApplyOpen(false);
+        queryClient.invalidateQueries({ queryKey: ['my-applications-map'] });
+      }
       toast(apiErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
@@ -59,7 +78,10 @@ export default function JobDetail() {
 
       <div className="card p-6 sm:p-8">
         <div className="flex items-center gap-2 text-sm text-slate-400">
-          <Building2 className="h-4 w-4" /> {job.companyName}
+          <Building2 className="h-4 w-4" />
+          <Link to={`/candidate/companies/${job.companyId}`} className="font-medium text-brand-600 hover:text-brand-700">
+            {job.companyName}
+          </Link>
           {job.companyIndustry && <span>· {job.companyIndustry}</span>}
         </div>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">{job.title}</h1>
@@ -121,10 +143,42 @@ export default function JobDetail() {
           </div>
         )}
 
-        <div className="mt-8 flex justify-end border-t border-slate-100 pt-6">
-          <button className="btn-primary" onClick={() => setApplyOpen(true)}>
-            Apply for this position
-          </button>
+        <div className="mt-8 border-t border-slate-100 pt-6">
+          {applied && !canApply ? (
+            <div className="flex flex-col gap-3 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">
+                    You applied on {formatDate(applied.appliedAt)}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                    Current status:
+                    <StatusPill
+                      label={humanize(applied.status)}
+                      className={APPLICATION_STATUS_STYLES[applied.status]}
+                    />
+                  </p>
+                </div>
+              </div>
+              <Link to="/candidate/applications" className="btn-secondary shrink-0">
+                Track your application
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {isReapply ? (
+                <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                  <RotateCcw className="h-4 w-4" /> You withdrew a previous application — you can re-apply.
+                </p>
+              ) : (
+                <span />
+              )}
+              <button className="btn-primary shrink-0" onClick={() => setApplyOpen(true)}>
+                {isReapply ? 'Re-apply for this position' : 'Apply for this position'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, MapPin, Briefcase, Building2, Clock } from 'lucide-react';
+import { Search, MapPin, Briefcase, Building2, Clock, CheckCircle2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import PageHeader from '../../components/PageHeader';
-import { Spinner, EmptyState, Pagination } from '../../components/ui';
-import { formatSalary, humanize, timeAgo } from '../../lib/format';
+import { useMyApplicationsMap } from '../../lib/useMyApplications';
+import { Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
+import { APPLICATION_STATUS_STYLES, formatSalary, humanize, timeAgo } from '../../lib/format';
 import type { EmploymentType, Page, PublicJob, WorkMode } from '../../types';
 
 export default function BrowseJobs() {
+  const navigate = useNavigate();
+  const { data: appliedMap } = useMyApplicationsMap();
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('');
   const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('');
@@ -85,15 +88,44 @@ export default function BrowseJobs() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.content.map((job) => {
             const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
+            const applied = appliedMap?.[job.id];
+            const showApplied = applied && applied.status !== 'WITHDRAWN';
             return (
               <Link
                 key={job.id}
                 to={`/candidate/jobs/${job.id}`}
-                className="card flex flex-col p-5 transition-all hover:border-brand-300 hover:shadow-md"
+                className="card relative flex flex-col p-5 transition-all hover:border-brand-300 hover:shadow-md"
               >
+                {showApplied && (
+                  <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                    <CheckCircle2 className="h-3 w-3" /> Applied
+                  </span>
+                )}
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-400">
-                  <Building2 className="h-3.5 w-3.5" />
-                  {job.companyName}
+                  {job.companyLogoUrl ? (
+                    <img src={job.companyLogoUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                  ) : (
+                    <Building2 className="h-3.5 w-3.5" />
+                  )}
+                  <span
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/candidate/companies/${job.companyId}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/candidate/companies/${job.companyId}`);
+                      }
+                    }}
+                    className="hover:text-brand-600 hover:underline"
+                  >
+                    {job.companyName}
+                  </span>
                 </div>
                 <h3 className="font-semibold text-slate-800 line-clamp-2">{job.title}</h3>
                 <p className="mt-2 line-clamp-2 flex-1 text-sm text-slate-500">{job.description}</p>
@@ -101,6 +133,12 @@ export default function BrowseJobs() {
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <span className="badge bg-slate-100 text-slate-600">{humanize(job.employmentType)}</span>
                   <span className="badge bg-slate-100 text-slate-600">{humanize(job.workMode)}</span>
+                  {showApplied && applied && (
+                    <StatusPill
+                      label={humanize(applied.status)}
+                      className={APPLICATION_STATUS_STYLES[applied.status]}
+                    />
+                  )}
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-400">

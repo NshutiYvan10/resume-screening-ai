@@ -41,6 +41,10 @@ public class AppProperties {
     public static class AiService {
         private String baseUrl;
         private String apiKey;
+        /** When true, the backend launches the Python AI service as a child process on startup. */
+        private boolean autoStart = false;
+        /** Filesystem path to the ai-service directory, relative to the backend working dir or absolute. */
+        private String directory = "../ai-service";
     }
 
     @Getter @Setter

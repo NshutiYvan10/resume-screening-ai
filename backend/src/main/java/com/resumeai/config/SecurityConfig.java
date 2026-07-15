@@ -51,6 +51,8 @@ public class SecurityConfig {
                                 "/api/v1/invitations/accept-company",
                                 "/api/v1/invitations/accept-team",
                                 "/api/v1/jobs/public/**",
+                                "/api/v1/companies/public/**",
+                                "/api/v1/media/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",

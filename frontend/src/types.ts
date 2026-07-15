@@ -40,6 +40,12 @@ export interface Page<T> {
   totalPages: number;
 }
 
+export interface CompanyPhoto {
+  id: string;
+  url: string;
+  caption?: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -48,6 +54,16 @@ export interface Company {
   companySize?: string;
   location?: string;
   description?: string;
+  tagline?: string;
+  foundedYear?: number;
+  mission?: string;
+  values?: string[];
+  benefits?: string[];
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  photos?: CompanyPhoto[];
   status: CompanyStatus;
   createdAt: string;
 }
@@ -118,10 +134,34 @@ export interface Job {
   applicationCount?: number;
 }
 
+export interface PublicCompany {
+  id: string;
+  name: string;
+  industry?: string;
+  website?: string;
+  companySize?: string;
+  location?: string;
+  description?: string;
+  tagline?: string;
+  foundedYear?: number;
+  mission?: string;
+  values?: string[];
+  benefits?: string[];
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  photos?: CompanyPhoto[];
+  openJobs: number;
+  createdAt: string;
+}
+
 export interface PublicJob {
   id: string;
+  companyId: string;
   companyName: string;
   companyIndustry?: string;
+  companyLogoUrl?: string;
   title: string;
   department?: string;
   location?: string;
@@ -158,6 +198,7 @@ export interface Application {
   id: string;
   jobId: string;
   jobTitle: string;
+  companyId: string;
   companyName: string;
   candidateId: string;
   candidateName: string;

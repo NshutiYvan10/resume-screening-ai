@@ -68,33 +68,59 @@ public class ApplicationService {
         if (job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now())) {
             throw ApiException.badRequest("The application deadline for this job has passed");
         }
-        if (applicationRepository.existsByJobIdAndCandidateId(jobId, actor.getId())) {
-            throw ApiException.conflict("You have already applied for this job");
-        }
         if (resume == null || resume.isEmpty()) {
             throw ApiException.badRequest("A resume file is required");
+        }
+
+        // A candidate gets one application per job. If they previously withdrew, they may
+        // re-apply (the existing row is reactivated and re-screened). Any other prior status
+        // (submitted, under review, shortlisted, rejected, hired, ...) blocks re-applying.
+        Application existing = applicationRepository.findByJobIdAndCandidateId(jobId, actor.getId())
+                .orElse(null);
+        if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
+            throw ApiException.conflict("You have already applied for this job");
         }
 
         User candidate = userRepository.getReferenceById(actor.getId());
         String storedPath = fileStorageService.storeResume(resume, job.getCompany().getId());
 
-        Application application = Application.builder()
-                .job(job)
-                .candidate(candidate)
-                .coverLetter(coverLetter)
-                .resumeFileName(resume.getOriginalFilename())
-                .resumeStoredPath(storedPath)
-                .resumeContentType(resume.getContentType())
-                .build();
+        Application application;
+        boolean reapplied = existing != null;
+        // Old resume is removed only after the transaction commits (see below), so a
+        // rollback can't leave the row pointing at a deleted file.
+        String previousResumePath = reapplied ? existing.getResumeStoredPath() : null;
+        if (reapplied) {
+            // reactivate the withdrawn application in place (preserves one-per-job uniqueness)
+            existing.setCoverLetter(coverLetter);
+            existing.setResumeFileName(resume.getOriginalFilename());
+            existing.setResumeStoredPath(storedPath);
+            existing.setResumeContentType(resume.getContentType());
+            existing.setStatus(ApplicationStatus.SUBMITTED);
+            existing.setRecruiterNote(null);
+            existing.setStatusUpdatedBy(null);
+            existing.setAppliedAt(Instant.now());
+            existing.setStatusUpdatedAt(Instant.now());
+            resetScreening(existing);
+            application = existing;
+        } else {
+            application = Application.builder()
+                    .job(job)
+                    .candidate(candidate)
+                    .coverLetter(coverLetter)
+                    .resumeFileName(resume.getOriginalFilename())
+                    .resumeStoredPath(storedPath)
+                    .resumeContentType(resume.getContentType())
+                    .build();
+            ScreeningResult screening = ScreeningResult.builder()
+                    .application(application)
+                    .status(ScreeningStatus.PENDING)
+                    .build();
+            application.setScreeningResult(screening);
+            applicationRepository.save(application);
+        }
 
-        ScreeningResult screening = ScreeningResult.builder()
-                .application(application)
-                .status(ScreeningStatus.PENDING)
-                .build();
-        application.setScreeningResult(screening);
-        applicationRepository.save(application);
-
-        auditService.log("APPLICATION_SUBMITTED", "APPLICATION", application.getId().toString(),
+        auditService.log(reapplied ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
+                "APPLICATION", application.getId().toString(),
                 Map.of("jobTitle", job.getTitle(), "jobId", jobId.toString()));
 
         // confirmation to the candidate (in-app + email)
@@ -116,9 +142,14 @@ public class ApplicationService {
         // kick off async AI screening, but only once this transaction has committed
         // (otherwise the async worker races the insert and can't find the application)
         UUID applicationId = application.getId();
+        String orphanedResumePath = previousResumePath;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                // remove the superseded resume only after the new path is durably persisted
+                if (orphanedResumePath != null) {
+                    fileStorageService.deleteQuietly(orphanedResumePath);
+                }
                 screeningService.queueScreening(applicationId);
             }
         });
@@ -312,6 +343,27 @@ public class ApplicationService {
         notificationService.notify(application.getCandidate(),
                 NotificationType.APPLICATION_STATUS_CHANGED, title, message,
                 "/candidate/applications", email);
+    }
+
+    /** Reset a reactivated application's screening back to a clean PENDING state. */
+    private void resetScreening(Application application) {
+        ScreeningResult sr = application.getScreeningResult();
+        if (sr == null) {
+            sr = ScreeningResult.builder().application(application).build();
+            application.setScreeningResult(sr);
+        }
+        sr.setStatus(ScreeningStatus.PENDING);
+        sr.setMatchScore(null);
+        sr.setSkillsScore(null);
+        sr.setExperienceScore(null);
+        sr.setEducationScore(null);
+        sr.setExtractedSkills(null);
+        sr.setExtractedEducation(null);
+        sr.setExtractedExperienceYears(null);
+        sr.setBiasFlag(false);
+        sr.setBiasFlagReason(null);
+        sr.setErrorMessage(null);
+        sr.setScreenedAt(null);
     }
 
     private Application find(UUID applicationId) {

@@ -10,11 +10,14 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ApplicationRepository extends JpaRepository<Application, UUID> {
 
     boolean existsByJobIdAndCandidateId(UUID jobId, UUID candidateId);
+
+    Optional<Application> findByJobIdAndCandidateId(UUID jobId, UUID candidateId);
 
     Page<Application> findByCandidateId(UUID candidateId, Pageable pageable);
 

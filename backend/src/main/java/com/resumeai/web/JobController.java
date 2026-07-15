@@ -27,9 +27,10 @@ public class JobController {
                                                       @RequestParam(required = false) String location,
                                                       @RequestParam(required = false) EmploymentType employmentType,
                                                       @RequestParam(required = false) WorkMode workMode,
+                                                      @RequestParam(required = false) UUID companyId,
                                                       @RequestParam(defaultValue = "0") int page,
                                                       @RequestParam(defaultValue = "12") int size) {
-        return jobService.listPublic(search, location, employmentType, workMode, page, size);
+        return jobService.listPublic(search, location, employmentType, workMode, companyId, page, size);
     }
 
     @GetMapping("/public/{id}")

@@ -6,8 +6,10 @@ import com.resumeai.dto.CompanyDtos.*;
 import com.resumeai.service.CompanyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -26,6 +28,12 @@ public class CompanyController {
         return companyService.list(search, page, size);
     }
 
+    /** Public candidate-facing company profile (no authentication required). */
+    @GetMapping("/public/{id}")
+    public PublicCompanyResponse getPublic(@PathVariable UUID id) {
+        return companyService.getPublic(id);
+    }
+
     @GetMapping("/my")
     @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
     public CompanyResponse myCompany() {
@@ -42,6 +50,32 @@ public class CompanyController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
     public CompanyResponse update(@PathVariable UUID id, @Valid @RequestBody CompanyRequest request) {
         return companyService.update(id, request);
+    }
+
+    @PostMapping(value = "/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    public CompanyResponse uploadLogo(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+        return companyService.uploadLogo(id, file);
+    }
+
+    @PostMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    public CompanyResponse uploadCover(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+        return companyService.uploadCover(id, file);
+    }
+
+    @PostMapping(value = "/{id}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    public CompanyResponse addPhoto(@PathVariable UUID id,
+                                    @RequestParam("file") MultipartFile file,
+                                    @RequestParam(value = "caption", required = false) String caption) {
+        return companyService.addPhoto(id, file, caption);
+    }
+
+    @DeleteMapping("/{id}/photos/{photoId}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    public CompanyResponse deletePhoto(@PathVariable UUID id, @PathVariable UUID photoId) {
+        return companyService.deletePhoto(id, photoId);
     }
 
     @PostMapping("/{id}/suspend")

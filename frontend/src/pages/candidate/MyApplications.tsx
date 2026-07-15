@@ -33,6 +33,7 @@ export default function MyApplications() {
     onSuccess: () => {
       toast('Application withdrawn', 'success');
       queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      queryClient.invalidateQueries({ queryKey: ['my-applications-map'] });
     },
     onError: (err) => toast(apiErrorMessage(err), 'error'),
   });
@@ -72,7 +73,13 @@ export default function MyApplications() {
                   <div className="min-w-0">
                     <h3 className="font-semibold text-slate-800">{app.jobTitle}</h3>
                     <div className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-400">
-                      <Building2 className="h-3.5 w-3.5" /> {app.companyName}
+                      <Building2 className="h-3.5 w-3.5" />
+                      <Link
+                        to={`/candidate/companies/${app.companyId}`}
+                        className="hover:text-brand-600 hover:underline"
+                      >
+                        {app.companyName}
+                      </Link>
                     </div>
                   </div>
                   <StatusPill label={humanize(app.status)} className={APPLICATION_STATUS_STYLES[app.status]} />

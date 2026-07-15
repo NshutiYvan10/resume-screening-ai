@@ -18,6 +18,8 @@ import java.util.UUID;
 public class FileStorageService {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "doc", "txt");
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp");
+    private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
     private final Path root;
 
@@ -53,6 +55,49 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store resume file");
+        }
+    }
+
+    /**
+     * Store a company profile image (logo/cover/gallery) under
+     * storage-root/company-media/{companyId}/ and return the path relative to
+     * the storage root.
+     */
+    public String storeCompanyImage(MultipartFile file, UUID companyId) {
+        if (file == null || file.isEmpty()) {
+            throw ApiException.badRequest("An image file is required");
+        }
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw ApiException.badRequest("Image exceeds the maximum size of 5MB");
+        }
+        String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image";
+        String ext = extensionOf(original);
+        if (!ALLOWED_IMAGE_EXTENSIONS.contains(ext)) {
+            throw ApiException.badRequest("Unsupported image format ." + ext
+                    + " - allowed formats: PNG, JPG, JPEG, WEBP");
+        }
+        try {
+            Path dir = root.resolve("company-media").resolve(companyId.toString());
+            Files.createDirectories(dir);
+            Path target = dir.resolve(UUID.randomUUID() + "." + ext);
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return root.relativize(target).toString();
+        } catch (IOException e) {
+            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to store image file");
+        }
+    }
+
+    /** Best-effort delete of a previously stored file; never throws. */
+    public void deleteQuietly(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(resolve(relativePath));
+        } catch (Exception ignored) {
         }
     }
 

@@ -29,6 +29,7 @@ import CompanyAudit from './pages/company/CompanyAudit';
 import BrowseJobs from './pages/candidate/BrowseJobs';
 import JobDetail from './pages/candidate/JobDetail';
 import MyApplications from './pages/candidate/MyApplications';
+import CompanyProfilePublic from './pages/candidate/CompanyProfilePublic';
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
@@ -73,6 +74,7 @@ export default function App() {
       {/* candidate */}
       <Route path="/candidate" element={<RequireAuth roles={['CANDIDATE']}><Shell><BrowseJobs /></Shell></RequireAuth>} />
       <Route path="/candidate/jobs/:jobId" element={<RequireAuth roles={['CANDIDATE']}><Shell><JobDetail /></Shell></RequireAuth>} />
+      <Route path="/candidate/companies/:companyId" element={<RequireAuth roles={['CANDIDATE']}><Shell><CompanyProfilePublic /></Shell></RequireAuth>} />
       <Route path="/candidate/applications" element={<RequireAuth roles={['CANDIDATE']}><Shell><MyApplications /></Shell></RequireAuth>} />
 
       {/* shared */}

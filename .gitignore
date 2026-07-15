@@ -9,6 +9,7 @@ frontend/dist/
 # Python
 ai-service/.venv/
 ai-service/__pycache__/
+ai-service/ai-service.local.log
 **/__pycache__/
 *.pyc
 

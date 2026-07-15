@@ -35,16 +35,27 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
               AND (:location IS NULL OR lower(j.location) LIKE lower(concat('%', cast(:location as string), '%')))
               AND (:employmentType IS NULL OR j.employmentType = :employmentType)
               AND (:workMode IS NULL OR j.workMode = :workMode)
+              AND (:companyId IS NULL OR c.id = :companyId)
             """)
     Page<Job> searchPublicJobs(@Param("search") String search,
                                @Param("location") String location,
                                @Param("employmentType") EmploymentType employmentType,
                                @Param("workMode") WorkMode workMode,
+                               @Param("companyId") UUID companyId,
                                Pageable pageable);
 
     long countByCompanyId(UUID companyId);
 
     long countByCompanyIdAndStatus(UUID companyId, JobStatus status);
+
+    /** Jobs a candidate can actually see & apply to — matches searchPublicJobs' filter. */
+    @Query("""
+            SELECT count(j) FROM Job j
+            WHERE j.company.id = :companyId
+              AND j.status = com.resumeai.domain.enums.JobStatus.PUBLISHED
+              AND (j.deadline IS NULL OR j.deadline >= CURRENT_DATE)
+            """)
+    long countOpenPublicJobs(@Param("companyId") UUID companyId);
 
     long countByStatus(JobStatus status);
 }

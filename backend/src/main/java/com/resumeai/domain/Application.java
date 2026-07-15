@@ -60,8 +60,10 @@ public class Application {
     @OneToOne(mappedBy = "application", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private ScreeningResult screeningResult;
 
+    // Set on insert by @CreationTimestamp; also refreshed explicitly when a
+    // withdrawn application is re-submitted, so it must remain updatable.
     @CreationTimestamp
-    @Column(name = "applied_at", nullable = false, updatable = false)
+    @Column(name = "applied_at", nullable = false)
     private Instant appliedAt;
 
     @UpdateTimestamp
