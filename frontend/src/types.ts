@@ -5,7 +5,7 @@ export type InvitationType = 'COMPANY' | 'TEAM_MEMBER';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
 export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP';
 export type WorkMode = 'ONSITE' | 'REMOTE' | 'HYBRID';
-export type JobStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
+export type JobStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
 export type EducationLevel = 'CERTIFICATE' | 'DIPLOMA' | 'BACHELORS' | 'MASTERS' | 'PHD';
 export type ApplicationStatus =
   | 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'INTERVIEW'
@@ -130,6 +130,11 @@ export interface Job {
   publishedAt?: string;
   createdAt: string;
   createdByName?: string;
+  submittedByName?: string;
+  submittedAt?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
   qualifications: Qualification[];
   applicationCount?: number;
 }

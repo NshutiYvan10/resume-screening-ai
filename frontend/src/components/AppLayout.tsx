@@ -1,7 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, ClipboardList, Briefcase, FileText,
+  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, FileText,
   ShieldCheck, LogOut, Menu, X, ChevronDown, Search,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,9 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   COMPANY_ADMIN: [
     { to: '/company', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+    { to: '/company/approvals', label: 'Approvals', icon: <ClipboardCheck className="h-5 w-5" /> },
     { to: '/company/jobs', label: 'Jobs', icon: <Briefcase className="h-5 w-5" /> },
+    { to: '/company/candidates', label: 'Candidates', icon: <ClipboardList className="h-5 w-5" /> },
     { to: '/company/team', label: 'Team', icon: <Users className="h-5 w-5" /> },
     { to: '/company/profile', label: 'Company Profile', icon: <Building2 className="h-5 w-5" /> },
     { to: '/company/audit', label: 'Audit Trail', icon: <ShieldCheck className="h-5 w-5" /> },

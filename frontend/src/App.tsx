@@ -18,6 +18,8 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminAudit from './pages/admin/AdminAudit';
 
 import CompanyDashboard from './pages/company/CompanyDashboard';
+import CompanyApprovals from './pages/company/CompanyApprovals';
+import CompanyPipeline from './pages/company/CompanyPipeline';
 import CompanyJobs from './pages/company/CompanyJobs';
 import JobEditor from './pages/company/JobEditor';
 import JobApplications from './pages/company/JobApplications';
@@ -62,6 +64,8 @@ export default function App() {
 
       {/* company (admin + recruiter) */}
       <Route path="/company" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><CompanyDashboard /></Shell></RequireAuth>} />
+      <Route path="/company/approvals" element={<RequireAuth roles={['COMPANY_ADMIN']}><Shell><CompanyApprovals /></Shell></RequireAuth>} />
+      <Route path="/company/candidates" element={<RequireAuth roles={['COMPANY_ADMIN']}><Shell><CompanyPipeline /></Shell></RequireAuth>} />
       <Route path="/company/jobs" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><CompanyJobs /></Shell></RequireAuth>} />
       <Route path="/company/jobs/new" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><JobEditor /></Shell></RequireAuth>} />
       <Route path="/company/jobs/:jobId/edit" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><JobEditor /></Shell></RequireAuth>} />

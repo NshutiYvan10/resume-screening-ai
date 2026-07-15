@@ -73,6 +73,16 @@ public class UserService {
         if (status != UserStatus.ACTIVE && status != UserStatus.DISABLED) {
             throw ApiException.badRequest("Status must be ACTIVE or DISABLED");
         }
+        // Never let a company lock itself out: keep at least one active admin.
+        // Lock the active-admin rows FOR UPDATE so concurrent disables can't both pass this check.
+        if (status == UserStatus.DISABLED
+                && user.getRole() == Role.COMPANY_ADMIN
+                && user.getCompany() != null
+                && userRepository.lockByCompanyAndRoleAndStatus(
+                        user.getCompany().getId(), Role.COMPANY_ADMIN, UserStatus.ACTIVE).size() <= 1) {
+            throw ApiException.badRequest(
+                    "This is the company's only active administrator and cannot be disabled");
+        }
 
         user.setStatus(status);
         if (status == UserStatus.DISABLED) {

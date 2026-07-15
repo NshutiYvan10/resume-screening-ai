@@ -55,6 +55,8 @@ public class AnalyticsService {
         out.put("publishedJobs", jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.PUBLISHED));
         out.put("draftJobs", jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.DRAFT));
         out.put("closedJobs", jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.CLOSED));
+        out.put("pendingApprovalJobs",
+                jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.PENDING_APPROVAL));
         out.put("totalApplications", applicationRepository.countByCompany(companyId));
         out.put("teamMembers", userRepository.countByCompanyId(companyId));
 

@@ -23,7 +23,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/company")
-    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
     public Map<String, Object> company() {
         return analyticsService.company();
     }

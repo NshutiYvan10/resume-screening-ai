@@ -187,6 +187,62 @@ public class ApplicationService {
         return ApplicationResponse.from(application, false, false);
     }
 
+    // -------------------------------------------------- admin oversight
+
+    /** Company-wide candidate pipeline across every job — company admin only. */
+    @Transactional(readOnly = true)
+    public PageResponse<ApplicationResponse> companyPipeline(ApplicationStatus status, UUID jobId,
+                                                             BigDecimal minScore, String sortBy,
+                                                             int page, int size) {
+        UserPrincipal actor = requireCompanyAdmin();
+        Sort sort = "appliedAt".equals(sortBy)
+                ? Sort.by(Sort.Direction.DESC, "appliedAt")
+                : JpaSort.unsafe(Sort.Direction.DESC, "COALESCE(sr.matchScore, -1)");
+        return PageResponse.of(
+                applicationRepository.searchCompanyApplications(actor.getCompanyId(), status, jobId,
+                        minScore, PageRequest.of(page, size, sort)),
+                a -> ApplicationResponse.from(a, true, true));
+    }
+
+    /** CSV export of the whole company pipeline — company admin only. */
+    @Transactional(readOnly = true)
+    public String exportCompanyPipelineCsv() {
+        UserPrincipal actor = requireCompanyAdmin();
+        List<Application> apps = applicationRepository.findAllForCompany(actor.getCompanyId());
+        StringBuilder sb = new StringBuilder("Candidate,Email,Job,Status,Match Score,Applied At,Screening\n");
+        for (Application a : apps) {
+            ScreeningResult sr = a.getScreeningResult();
+            sb.append(csv(a.getCandidate().getFullName())).append(',')
+                    .append(csv(a.getCandidate().getEmail())).append(',')
+                    .append(csv(a.getJob().getTitle())).append(',')
+                    .append(a.getStatus()).append(',')
+                    .append(sr != null && sr.getMatchScore() != null ? sr.getMatchScore() : "").append(',')
+                    .append(a.getAppliedAt()).append(',')
+                    .append(sr != null ? sr.getStatus() : "").append('\n');
+        }
+        auditService.log("PIPELINE_EXPORTED", "COMPANY", actor.getCompanyId().toString(),
+                Map.of("rows", apps.size()));
+        return sb.toString();
+    }
+
+    private String csv(String v) {
+        if (v == null) {
+            return "";
+        }
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
+    }
+
+    private UserPrincipal requireCompanyAdmin() {
+        UserPrincipal actor = SecurityUtils.requireCurrentUser();
+        if (actor.getRole() != Role.COMPANY_ADMIN || actor.getCompanyId() == null) {
+            throw ApiException.forbidden("Only company administrators can access company-wide oversight");
+        }
+        return actor;
+    }
+
     // ----------------------------------------------------------- recruiter
 
     @Transactional(readOnly = true)

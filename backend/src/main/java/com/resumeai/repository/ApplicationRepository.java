@@ -37,6 +37,24 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
 
     long countByJobIdAndStatus(UUID jobId, ApplicationStatus status);
 
+    /** Company-wide pipeline for admin oversight (across all jobs). */
+    @Query("""
+            SELECT a FROM Application a
+            LEFT JOIN a.screeningResult sr
+            WHERE a.job.company.id = :companyId
+              AND (:status IS NULL OR a.status = :status)
+              AND (:jobId IS NULL OR a.job.id = :jobId)
+              AND (:minScore IS NULL OR sr.matchScore >= :minScore)
+            """)
+    Page<Application> searchCompanyApplications(@Param("companyId") UUID companyId,
+                                                @Param("status") ApplicationStatus status,
+                                                @Param("jobId") UUID jobId,
+                                                @Param("minScore") BigDecimal minScore,
+                                                Pageable pageable);
+
+    @Query("SELECT a FROM Application a WHERE a.job.company.id = :companyId ORDER BY a.appliedAt DESC")
+    List<Application> findAllForCompany(@Param("companyId") UUID companyId);
+
     @Query("SELECT count(a) FROM Application a WHERE a.job.company.id = :companyId")
     long countByCompany(@Param("companyId") UUID companyId);
 

@@ -11,6 +11,7 @@ import com.resumeai.dto.CompanyDtos.*;
 import com.resumeai.repository.CompanyPhotoRepository;
 import com.resumeai.repository.CompanyRepository;
 import com.resumeai.repository.JobRepository;
+import com.resumeai.repository.RefreshTokenRepository;
 import com.resumeai.repository.UserRepository;
 import com.resumeai.security.SecurityUtils;
 import com.resumeai.security.UserPrincipal;
@@ -35,6 +36,7 @@ public class CompanyService {
     private final CompanyPhotoRepository companyPhotoRepository;
     private final UserRepository userRepository;
     private final JobRepository jobRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
 
@@ -156,6 +158,12 @@ public class CompanyService {
     public CompanyResponse setStatus(UUID companyId, CompanyStatus status) {
         Company company = find(companyId);
         company.setStatus(status);
+        if (status == CompanyStatus.SUSPENDED) {
+            // Cut off active sessions: revoke every refresh token belonging to the company's users.
+            // Their access tokens are also rejected on the next request (the auth filter re-checks
+            // company status live), and they cannot sign in again until reactivated.
+            refreshTokenRepository.revokeAllForCompany(companyId, java.time.Instant.now());
+        }
         auditService.log(status == CompanyStatus.SUSPENDED ? "COMPANY_SUSPENDED" : "COMPANY_ACTIVATED",
                 "COMPANY", companyId.toString(), Map.of("name", company.getName()));
         return CompanyResponse.from(company, photosOf(companyId));

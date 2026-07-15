@@ -1,6 +1,7 @@
 package com.resumeai.security;
 
 import com.resumeai.domain.User;
+import com.resumeai.domain.enums.CompanyStatus;
 import com.resumeai.domain.enums.Role;
 import com.resumeai.domain.enums.UserStatus;
 import lombok.Getter;
@@ -21,6 +22,7 @@ public class UserPrincipal implements UserDetails {
     private final Role role;
     private final UserStatus status;
     private final UUID companyId;
+    private final CompanyStatus companyStatus;
     private final String fullName;
 
     public UserPrincipal(User user) {
@@ -30,7 +32,13 @@ public class UserPrincipal implements UserDetails {
         this.role = user.getRole();
         this.status = user.getStatus();
         this.companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        this.companyStatus = user.getCompany() != null ? user.getCompany().getStatus() : null;
         this.fullName = user.getFullName();
+    }
+
+    /** A user whose company has been suspended loses access even if their own account is active. */
+    public boolean isCompanySuspended() {
+        return companyStatus == CompanyStatus.SUSPENDED;
     }
 
     @Override

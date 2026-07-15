@@ -1,24 +1,29 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Briefcase, Plus, Search, Users, MoreVertical } from 'lucide-react';
+import { Briefcase, Plus, Search, Users, MoreVertical, AlertTriangle } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
-import { Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
+import { Spinner, EmptyState, Pagination, StatusPill, Modal, Field } from '../../components/ui';
 import { JOB_STATUS_STYLES, formatDate, humanize } from '../../lib/format';
 import type { Job, JobStatus, Page } from '../../types';
 
-const STATUS_TABS: (JobStatus | 'ALL')[] = ['ALL', 'PUBLISHED', 'DRAFT', 'CLOSED', 'ARCHIVED'];
+const STATUS_TABS: (JobStatus | 'ALL')[] = ['ALL', 'PUBLISHED', 'PENDING_APPROVAL', 'DRAFT', 'CLOSED', 'ARCHIVED'];
 
 export default function CompanyJobs() {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'COMPANY_ADMIN';
   const [status, setStatus] = useState<JobStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['jobs', status, search, page],
@@ -28,18 +33,43 @@ export default function CompanyJobs() {
       })).data,
   });
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['analytics', 'company'] });
+  };
+
   const action = useMutation({
     mutationFn: async ({ id, verb }: { id: string; verb: string }) => {
       if (verb === 'delete') return api.delete(`/jobs/${id}`);
       return api.post(`/jobs/${id}/${verb}`);
     },
-    onSuccess: () => {
-      toast('Job updated', 'success');
+    onSuccess: (_d, v) => {
+      toast(actionToast(v.verb), 'success');
       setMenuId(null);
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      invalidate();
     },
     onError: (err) => toast(apiErrorMessage(err), 'error'),
   });
+
+  const reject = useMutation({
+    mutationFn: async () => api.post(`/jobs/${rejectId}/reject`, { reason: rejectReason.trim() }),
+    onSuccess: () => {
+      toast('Job returned to the recruiter', 'success');
+      setRejectId(null);
+      setRejectReason('');
+      invalidate();
+    },
+    onError: (err) => toast(apiErrorMessage(err), 'error'),
+  });
+
+  const actionToast = (verb: string) =>
+    verb === 'submit' ? 'Submitted for approval'
+      : verb === 'approve' ? 'Approved & published'
+      : verb === 'publish' ? 'Published'
+      : verb === 'close' ? 'Job closed'
+      : verb === 'archive' ? 'Job archived'
+      : verb === 'delete' ? 'Job deleted'
+      : 'Job updated';
 
   return (
     <div>
@@ -117,7 +147,14 @@ export default function CompanyJobs() {
                   <span>{humanize(job.workMode)}</span>
                   {job.location && <span>{job.location}</span>}
                   <span>Created {formatDate(job.createdAt)}</span>
+                  {job.createdByName && <span>by {job.createdByName}</span>}
                 </div>
+                {job.status === 'DRAFT' && job.rejectionReason && (
+                  <div className="mt-2 flex items-start gap-1.5 rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span><strong>Returned by admin:</strong> {job.rejectionReason}</span>
+                  </div>
+                )}
               </div>
               <Link
                 to={`/company/jobs/${job.id}/applications`}
@@ -151,12 +188,39 @@ export default function CompanyJobs() {
                           Edit
                         </button>
                       )}
+                      {/* Recruiter (or admin) submits a draft/closed job for approval */}
                       {(job.status === 'DRAFT' || job.status === 'CLOSED') && (
+                        <button
+                          onClick={() => action.mutate({ id: job.id, verb: 'submit' })}
+                          className="block w-full px-4 py-2 text-left text-sm text-brand-600 hover:bg-brand-50"
+                        >
+                          Submit for approval
+                        </button>
+                      )}
+                      {/* Admin-only: approve or reject a pending job */}
+                      {isAdmin && job.status === 'PENDING_APPROVAL' && (
+                        <>
+                          <button
+                            onClick={() => action.mutate({ id: job.id, verb: 'approve' })}
+                            className="block w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50"
+                          >
+                            Approve &amp; publish
+                          </button>
+                          <button
+                            onClick={() => { setRejectId(job.id); setRejectReason(''); setMenuId(null); }}
+                            className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                          >
+                            Reject…
+                          </button>
+                        </>
+                      )}
+                      {/* Admin-only: publish directly, bypassing the queue */}
+                      {isAdmin && (job.status === 'DRAFT' || job.status === 'CLOSED') && (
                         <button
                           onClick={() => action.mutate({ id: job.id, verb: 'publish' })}
                           className="block w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50"
                         >
-                          Publish
+                          Publish directly
                         </button>
                       )}
                       {job.status === 'PUBLISHED' && (
@@ -195,6 +259,41 @@ export default function CompanyJobs() {
         </div>
       )}
       {data && <Pagination page={page} totalPages={data.totalPages} onChange={setPage} />}
+
+      <Modal open={!!rejectId} onClose={() => setRejectId(null)} title="Return job to recruiter">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!rejectReason.trim()) {
+              toast('Please give a reason', 'error');
+              return;
+            }
+            reject.mutate();
+          }}
+          className="space-y-4"
+        >
+          <p className="text-sm text-slate-500">
+            The job goes back to draft and the recruiter is notified with your feedback.
+          </p>
+          <Field label="Reason" required>
+            <textarea
+              className="input min-h-24"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Salary range is missing; please add it before resubmitting."
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-secondary" onClick={() => setRejectId(null)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-danger" disabled={reject.isPending}>
+              {reject.isPending && <Spinner className="h-4 w-4" />}
+              Return to recruiter
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

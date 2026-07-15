@@ -32,9 +32,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 UUID userId = jwtService.validateAndGetUserId(token);
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                    userRepository.findById(userId).ifPresent(user -> {
+                    userRepository.findByIdWithCompany(userId).ifPresent(user -> {
                         UserPrincipal principal = new UserPrincipal(user);
-                        if (principal.isEnabled()) {
+                        // Reject if the account was deactivated OR its company was suspended,
+                        // so access is cut off immediately (not only at token expiry).
+                        if (principal.isEnabled() && !principal.isCompanySuspended()) {
                             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                     principal, null, principal.getAuthorities());
                             auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

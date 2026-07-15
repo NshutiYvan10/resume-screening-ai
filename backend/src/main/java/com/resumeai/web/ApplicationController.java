@@ -49,6 +49,31 @@ public class ApplicationController {
         return applicationService.withdraw(id);
     }
 
+    // --------------------------------------------------- admin oversight
+
+    @GetMapping("/company")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public PageResponse<ApplicationResponse> companyPipeline(
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) UUID jobId,
+            @RequestParam(required = false) BigDecimal minScore,
+            @RequestParam(defaultValue = "score") String sortBy,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return applicationService.companyPipeline(status, jobId, minScore, sortBy, page, size);
+    }
+
+    @GetMapping("/company/export")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public ResponseEntity<byte[]> exportCompanyPipeline() {
+        byte[] csv = applicationService.exportCompanyPipelineCsv()
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"pipeline.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csv);
+    }
+
     // ------------------------------------------------------- recruiter
 
     @GetMapping("/jobs/{jobId}")
@@ -63,6 +88,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE','COMPANY_ADMIN','RECRUITER')")
     public ApplicationResponse get(@PathVariable UUID id) {
         return applicationService.get(id);
     }
@@ -82,6 +108,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}/resume")
+    @PreAuthorize("hasAnyRole('CANDIDATE','COMPANY_ADMIN','RECRUITER')")
     public ResponseEntity<Resource> downloadResume(@PathVariable UUID id) {
         ApplicationService.ResumeDownload download = applicationService.downloadResume(id);
         String contentType = download.contentType() != null

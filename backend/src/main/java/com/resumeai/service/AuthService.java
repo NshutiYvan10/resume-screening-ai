@@ -65,6 +65,10 @@ public class AuthService {
         if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
             throw ApiException.forbidden("Please verify your email address before signing in");
         }
+        if (isCompanySuspended(user)) {
+            throw ApiException.forbidden(
+                    "Your company's account has been suspended. Please contact the platform administrator.");
+        }
 
         user.setLastLoginAt(Instant.now());
         UserPrincipal principal = new UserPrincipal(user);
@@ -90,6 +94,9 @@ public class AuthService {
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw ApiException.unauthorized("Account is not active");
         }
+        if (isCompanySuspended(user)) {
+            throw ApiException.unauthorized("Your company's account has been suspended");
+        }
 
         // rotation: revoke the used token, issue a fresh one
         stored.setRevokedAt(Instant.now());
@@ -106,6 +113,11 @@ public class AuthService {
             refreshTokenRepository.findByTokenHash(TokenUtil.sha256(request.refreshToken()))
                     .ifPresent(token -> token.setRevokedAt(Instant.now()));
         }
+    }
+
+    private boolean isCompanySuspended(User user) {
+        return user.getCompany() != null
+                && user.getCompany().getStatus() == com.resumeai.domain.enums.CompanyStatus.SUSPENDED;
     }
 
     private String issueRefreshToken(User user) {

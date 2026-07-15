@@ -73,21 +73,39 @@ public class JobController {
         jobService.delete(id);
     }
 
-    @PostMapping("/{id}/publish")
+    @PostMapping("/{id}/submit")
     @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public JobResponse submit(@PathVariable UUID id) {
+        return jobService.submitForApproval(id);
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public JobResponse approve(@PathVariable UUID id) {
+        return jobService.approve(id);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public JobResponse reject(@PathVariable UUID id, @Valid @RequestBody RejectRequest request) {
+        return jobService.reject(id, request.reason());
+    }
+
+    @PostMapping("/{id}/publish")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
     public JobResponse publish(@PathVariable UUID id) {
-        return jobService.changeStatus(id, JobStatus.PUBLISHED);
+        return jobService.publishDirectly(id);
     }
 
     @PostMapping("/{id}/close")
     @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
     public JobResponse close(@PathVariable UUID id) {
-        return jobService.changeStatus(id, JobStatus.CLOSED);
+        return jobService.close(id);
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
     public JobResponse archive(@PathVariable UUID id) {
-        return jobService.changeStatus(id, JobStatus.ARCHIVED);
+        return jobService.archive(id);
     }
 }

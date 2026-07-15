@@ -46,8 +46,9 @@ export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
 
 export const JOB_STATUS_STYLES: Record<JobStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
+  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
   PUBLISHED: 'bg-green-100 text-green-700',
-  CLOSED: 'bg-amber-100 text-amber-700',
+  CLOSED: 'bg-orange-100 text-orange-700',
   ARCHIVED: 'bg-slate-100 text-slate-500',
 };
 

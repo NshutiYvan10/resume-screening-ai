@@ -26,6 +26,9 @@ public final class JobDtos {
             boolean required) {
     }
 
+    public record RejectRequest(@NotBlank @Size(max = 2000) String reason) {
+    }
+
     public record JobRequest(
             @NotBlank @Size(max = 200) String title,
             @Size(max = 120) String department,
@@ -70,6 +73,11 @@ public final class JobDtos {
             Instant publishedAt,
             Instant createdAt,
             String createdByName,
+            String submittedByName,
+            Instant submittedAt,
+            String approvedByName,
+            Instant approvedAt,
+            String rejectionReason,
             List<QualificationResponse> qualifications,
             Long applicationCount) {
 
@@ -95,6 +103,11 @@ public final class JobDtos {
                     j.getPublishedAt(),
                     j.getCreatedAt(),
                     j.getCreatedBy() != null ? j.getCreatedBy().getFullName() : null,
+                    j.getSubmittedBy() != null ? j.getSubmittedBy().getFullName() : null,
+                    j.getSubmittedAt(),
+                    j.getApprovedBy() != null ? j.getApprovedBy().getFullName() : null,
+                    j.getApprovedAt(),
+                    j.getRejectionReason(),
                     j.getQualifications().stream().map(QualificationResponse::from).toList(),
                     applicationCount);
         }

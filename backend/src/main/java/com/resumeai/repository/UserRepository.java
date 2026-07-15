@@ -5,7 +5,9 @@ import com.resumeai.domain.enums.Role;
 import com.resumeai.domain.enums.UserStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +19,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmailIgnoreCase(String email);
 
+    /** Loads the user with its company initialized (used by the auth filter, which has no session). */
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.company WHERE u.id = :id")
+    Optional<User> findByIdWithCompany(@Param("id") UUID id);
+
     boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByRole(Role role);
@@ -26,6 +32,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByRole(Role role);
 
     long countByCompanyId(UUID companyId);
+
+    long countByCompanyIdAndRoleAndStatus(UUID companyId, Role role, UserStatus status);
+
+    /**
+     * Locks the company's matching users FOR UPDATE so the last-active-admin check and the
+     * subsequent status change are atomic against concurrent disables (avoids a TOCTOU race).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.company.id = :companyId AND u.role = :role AND u.status = :status")
+    List<User> lockByCompanyAndRoleAndStatus(@Param("companyId") UUID companyId,
+                                             @Param("role") Role role,
+                                             @Param("status") UserStatus status);
 
     @Query("""
             SELECT u FROM User u LEFT JOIN u.company c

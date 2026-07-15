@@ -50,7 +50,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ErrorResponse> handleDisabled(DisabledException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ErrorResponse.of(HttpStatus.FORBIDDEN, "This account has been disabled"));
+                .body(ErrorResponse.of(HttpStatus.FORBIDDEN,
+                        "Your account has been deactivated. Please contact your administrator."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
