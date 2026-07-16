@@ -103,7 +103,10 @@ public class ScreeningService {
                     application.getResumeFileName(),
                     quals,
                     application.getJob().getDescription(),
-                    application.getJob().getTitle());
+                    application.getJob().getTitle(),
+                    application.getJob().getMinExperienceYears(),
+                    application.getJob().getEducationLevel() != null
+                            ? application.getJob().getEducationLevel().name() : "");
         });
         if (data == null) {
             log.warn("Application {} vanished before screening", applicationId);
@@ -179,6 +182,10 @@ public class ScreeningService {
         body.add("qualifications", objectMapper.writeValueAsString(data.qualifications()));
         body.add("job_description", data.jobDescription() != null ? data.jobDescription() : "");
         body.add("job_title", data.jobTitle() != null ? data.jobTitle() : "");
+        // the job's actual requirements now drive experience/education scoring
+        body.add("min_experience_years",
+                data.minExperienceYears() != null ? data.minExperienceYears().toPlainString() : "0");
+        body.add("education_level", data.educationLevel() != null ? data.educationLevel() : "");
 
         return aiClient
                 .post()
@@ -221,7 +228,8 @@ public class ScreeningService {
     }
 
     record ScreenJobData(String storedPath, String fileName, List<Map<String, Object>> qualifications,
-                         String jobDescription, String jobTitle) {
+                         String jobDescription, String jobTitle,
+                         BigDecimal minExperienceYears, String educationLevel) {
     }
 
     record AiScreenResponse(

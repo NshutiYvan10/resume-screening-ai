@@ -55,6 +55,9 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     @Query("SELECT a FROM Application a WHERE a.job.company.id = :companyId ORDER BY a.appliedAt DESC")
     List<Application> findAllForCompany(@Param("companyId") UUID companyId);
 
+    @Query("SELECT a.id FROM Application a WHERE a.job.id = :jobId")
+    List<UUID> findIdsByJobId(@Param("jobId") UUID jobId);
+
     @Query("SELECT count(a) FROM Application a WHERE a.job.company.id = :companyId")
     long countByCompany(@Param("companyId") UUID companyId);
 

@@ -158,6 +158,43 @@ SKILLS = {
         "Slack", "Microsoft Teams", "Zoom", "Webex", "Google Workspace",
         "Microsoft Office", "Office 365", "Google Suite", "Confluence",
         "SharePoint", "Salesforce", "HubSpot", "Zendesk", "ServiceNow"
+    ],
+    "healthcare": [
+        "Patient Care", "Nursing", "Phlebotomy", "Electronic Medical Records",
+        "Triage", "Critical Care", "ICU", "Medication Administration",
+        "Wound Care", "CPR", "BLS", "ACLS", "Patient Assessment",
+        "Clinical Documentation", "Infection Control", "Telemetry",
+        "Vital Signs", "Case Management", "Discharge Planning",
+        "Medical Terminology", "Emergency Care", "Surgical Assistance",
+        "Pediatric Care", "Geriatric Care", "Health Education", "Vaccination"
+    ],
+    "legal": [
+        "Legal Research", "Litigation", "Contract Law", "Contract Drafting",
+        "Legal Writing", "Due Diligence", "Compliance", "Corporate Law",
+        "Intellectual Property", "Regulatory Affairs", "Case Management",
+        "Legal Documentation", "Arbitration", "Mediation", "Paralegal",
+        "Court Filings", "Client Counseling", "Employment Law"
+    ],
+    "education_teaching": [
+        "Curriculum Development", "Lesson Planning", "Classroom Management",
+        "Teaching", "Tutoring", "Student Assessment", "Special Education",
+        "Educational Technology", "E-Learning", "Instructional Design",
+        "Early Childhood Education", "Adult Education", "Academic Advising",
+        "Grading", "Parent Communication", "IEP"
+    ],
+    "logistics": [
+        "Supply Chain Management", "Inventory Management", "Warehouse Management",
+        "Logistics Coordination", "Fleet Management", "Procurement",
+        "Demand Planning", "Shipping", "Customs Clearance", "Freight Forwarding",
+        "Order Fulfillment", "Route Optimization", "ERP", "WMS",
+        "Cold Chain", "Last Mile Delivery", "Vendor Management"
+    ],
+    "hospitality": [
+        "Food Safety", "Menu Development", "Kitchen Management", "Catering",
+        "Front Desk Operations", "Reservations", "Guest Relations",
+        "Housekeeping Management", "Event Planning", "Banquet Operations",
+        "POS Systems", "Food Cost Control", "Beverage Management",
+        "Hotel Operations", "Customer Experience", "Barista"
     ]
 }
 

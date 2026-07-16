@@ -184,7 +184,7 @@ export default function JobDetail() {
 
       <Modal open={applyOpen} onClose={() => setApplyOpen(false)} title={`Apply — ${job.title}`}>
         <form onSubmit={submitApplication} className="space-y-4">
-          <Field label="Resume" required hint="PDF, DOCX, DOC or TXT · max 10MB">
+          <Field label="Resume" required hint="PDF, DOCX or TXT · max 10MB">
             {file ? (
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                 <span className="flex items-center gap-2 text-sm text-slate-700">
@@ -200,7 +200,7 @@ export default function JobDetail() {
                 <span className="mt-2 text-sm text-slate-500">Click to upload your resume</span>
                 <input
                   type="file"
-                  accept=".pdf,.docx,.doc,.txt"
+                  accept=".pdf,.docx,.txt"
                   className="hidden"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />

@@ -32,23 +32,24 @@ def detect_bias(resume_text: str, candidate_name: str) -> Dict[str, Any]:
     
     text_lower = resume_text.lower()
     flags = []
-    
+
     # Check 1: Gender pronouns in personal statements
     gender_flag = _check_gender_pronouns(text_lower)
     if gender_flag:
         flags.append(gender_flag)
-    
-    # Check 2: Age indicators
+
+    # Check 2: Age indicators (explicit disclosures - low false-positive risk)
     age_flag = _check_age_indicators(text_lower)
     if age_flag:
         flags.append(age_flag)
-    
-    # Check 3: Marital status
+
+    # Checks 3 & 4 use words that legitimately appear in work context
+    # ("single sign-on", church as a client/employer), so a mention only
+    # counts when it occurs in a personal/profile part of the resume.
     marital_flag = _check_marital_status(text_lower)
     if marital_flag:
         flags.append(marital_flag)
-    
-    # Check 4: Religion/ethnicity in personal sections
+
     religion_flag = _check_religion_ethnicity(text_lower)
     if religion_flag:
         flags.append(religion_flag)
@@ -106,8 +107,8 @@ def _check_age_indicators(text: str) -> str:
         r'\d{1,2}\s+years\s+old',  # "25 years old"
         r'age\s*:\s*\d{1,2}',    # "Age: 30"
         r'date\s+of\s+birth',    # "Date of Birth"
-        r'dob',                  # "DOB"
-        r'birthday'
+        r'\bdob\b',              # "DOB"
+        r'\bbirthday\b'
     ]
     
     for pattern in age_patterns:
@@ -124,21 +125,22 @@ def _check_marital_status(text: str) -> str:
     Returns flag message if found, empty string otherwise
     """
     marital_patterns = [
-        r'\bmarried\b',
-        r'\bsingle\b',
+        r'\bmarried\b(?!\s+to\s+the)',
+        # "single" only as a status word, not "single-handedly" / "single sign-on"
+        r'\bsingle\b(?![\s\-](?:handed|sign|page|source|point|click|thread|use|cell|responsibility))(?!-)',
         r'\bdivorced\b',
         r'\bwidowed\b',
-        r'\bseparated\b',
         r'marital\s+status',
-        r'spouse',
-        r'husband',
-        r'wife'
+        r'\bspouse\b',
+        r'\bhusband\b',
+        r'\bwife\b'
     ]
-    
+
     for pattern in marital_patterns:
-        if re.search(pattern, text):
+        m = re.search(pattern, text)
+        if m and _is_in_personal_section(text, m.start()):
             return "Marital status mentioned"
-    
+
     return ""
 
 
@@ -177,9 +179,10 @@ def _check_religion_ethnicity(text: str) -> str:
     ]
     
     for pattern in religion_patterns + ethnicity_patterns:
-        if re.search(pattern, text):
+        m = re.search(pattern, text)
+        if m and _is_in_personal_section(text, m.start()):
             return "Personal information (religion/ethnicity) mentioned"
-    
+
     return ""
 
 
@@ -194,26 +197,29 @@ def _is_in_personal_section(text: str, match_position: int) -> bool:
     
     personal_section_keywords = [
         'personal', 'profile', 'about me', 'objective', 'summary',
-        'interests', 'hobbies', 'additional information'
+        'interests', 'hobbies', 'additional information', 'marital', 'date of birth'
     ]
-    
+
     work_section_keywords = [
         'experience', 'work history', 'employment', 'projects',
-        'achievements', 'accomplishments'
+        'achievements', 'accomplishments', 'volunteer', 'education',
+        'certifications', 'skills'
     ]
-    
-    # Check if we're in a personal section
-    for keyword in personal_section_keywords:
-        if keyword in text_before[-200:]:  # Check last 200 chars before match
-            return True
-    
-    # Check if we're in a work section
+
+    window = text_before[-250:]
+
+    # work context wins when both appear (the nearer header is likelier work)
     for keyword in work_section_keywords:
-        if keyword in text_before[-200:]:
+        if keyword in window:
             return False
-    
-    # Default to true (assume personal if unclear)
-    return True
+
+    for keyword in personal_section_keywords:
+        if keyword in window:
+            return True
+
+    # Default to False: an advisory flag must not fire on ambiguous context,
+    # or recruiters learn to ignore it.
+    return False
 
 
 def get_bias_severity(flagged: bool, reason: str) -> str:

@@ -24,6 +24,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -41,6 +43,7 @@ public class JobService {
     private final ApplicationRepository applicationRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final ScreeningService screeningService;
 
     // ------------------------------------------------------------- public
 
@@ -114,7 +117,9 @@ public class JobService {
         validateSalary(request);
         UserPrincipal actor = SecurityUtils.requireCurrentUser();
         boolean wasLive = job.getStatus() == JobStatus.PUBLISHED;
+        String criteriaBefore = screeningCriteriaFingerprint(job);
         applyRequest(job, request);
+        boolean criteriaChanged = !criteriaBefore.equals(screeningCriteriaFingerprint(job));
 
         // A recruiter editing content that is already live (or pending) must go back
         // through approval — otherwise the approval gate only guards the first publish.
@@ -133,7 +138,37 @@ public class JobService {
         } else {
             auditService.log("JOB_UPDATED", "JOB", job.getId().toString(), Map.of("title", job.getTitle()));
         }
+
+        // Existing AI scores were computed against the OLD criteria; re-screen every
+        // application of this job once the edit commits so rankings stay truthful.
+        if (criteriaChanged) {
+            List<UUID> applicationIds = applicationRepository.findIdsByJobId(job.getId());
+            if (!applicationIds.isEmpty()) {
+                auditService.log("JOB_APPLICATIONS_RESCREEN_QUEUED", "JOB", job.getId().toString(),
+                        Map.of("title", job.getTitle(), "applications", applicationIds.size()));
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        applicationIds.forEach(screeningService::queueScreening);
+                    }
+                });
+            }
+        }
         return JobResponse.from(job, applicationRepository.countByJobId(job.getId()));
+    }
+
+    /** Compact fingerprint of every field that feeds the AI screening. */
+    private String screeningCriteriaFingerprint(Job job) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(job.getTitle()).append('|')
+                .append(job.getDescription()).append('|')
+                .append(job.getMinExperienceYears()).append('|')
+                .append(job.getEducationLevel());
+        job.getQualifications().stream()
+                .sorted(java.util.Comparator.comparing(JobQualification::getSkill))
+                .forEach(q -> sb.append('|').append(q.getSkill()).append(':')
+                        .append(q.getWeight()).append(':').append(q.isRequired()));
+        return sb.toString();
     }
 
     /** Recruiter (or admin) sends a draft/closed job into the approval queue. */

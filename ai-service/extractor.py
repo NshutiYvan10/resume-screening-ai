@@ -4,7 +4,7 @@ Uses spaCy for named entity recognition and custom logic for skills/education/ex
 """
 import re
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
 
 try:
     import spacy
@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - environment fallback
 
 from skills_dictionary import ALL_SKILLS, SKILLS_LOWER
 from education_keywords import get_education_level, extract_field_of_study, EDUCATION_LEVELS
+from matcher import find_term
 
 logger = logging.getLogger(__name__)
 
@@ -23,43 +24,58 @@ except Exception as exc:  # pragma: no cover - runtime fallback
     logger.warning("spaCy model unavailable: %s", exc)
     nlp = None
 
+_LEVEL_NAMES = {
+    "phd": "PhD",
+    "masters": "Master's",
+    "bachelors": "Bachelor's",
+    "diploma": "Diploma",
+    "certificate": "Certificate",
+    "none": ""
+}
+
+EXPERIENCE_SECTION_KEYWORDS = [
+    "experience", "work history", "employment", "professional background",
+    "career history"
+]
+EDUCATION_SECTION_KEYWORDS = ["education", "academic", "qualifications", "degree"]
+
 
 def extract_entities(text: str) -> Dict[str, Any]:
     """
     Extract structured entities from resume text
-    
+
     Returns dict with:
-    - skills: list of matched skills
-    - education: education level string
-    - experience_years: float
-    - name: candidate name
-    - email: email address
-    - phone: phone number
+    - skills: list of matched skills (whole-word, alias- and negation-aware)
+    - education: formatted education string ("Bachelor's in Computer Science")
+    - education_level: raw level key (phd/masters/bachelors/diploma/certificate/none)
+    - experience_years: float (work-history based, education dates excluded)
+    - name, email, phone
     """
     if not text:
         return {
             "skills": [],
             "education": "",
+            "education_level": "none",
             "experience_years": 0,
             "name": "",
             "email": "",
             "phone": ""
         }
-    
+
     # Process with spaCy
     doc = nlp(text) if nlp else None
-    
-    # Extract each entity type
+
     skills = _extract_skills(text)
-    education = _extract_education(text)
+    education, education_level = _extract_education(text)
     experience_years = _extract_experience_years(text)
     name = _extract_name(text, doc)
     email = _extract_email(text)
     phone = _extract_phone(text)
-    
+
     return {
         "skills": skills,
         "education": education,
+        "education_level": education_level,
         "experience_years": experience_years,
         "name": name,
         "email": email,
@@ -69,150 +85,126 @@ def extract_entities(text: str) -> Dict[str, Any]:
 
 def _extract_skills(text: str) -> List[str]:
     """
-    Extract skills from text by matching against skills dictionary
-    
-    Uses:
-    - Exact keyword match (case-insensitive)
-    - Multi-word skill detection
-    - Context-aware matching
+    Extract skills via the unified matcher (whole-word + aliases + negation),
+    so the skills shown to recruiters always agree with the scoring engine.
     """
-    text_lower = text.lower()
     found_skills = []
-    
-    # Sort skills by length (longest first) to match multi-word skills first
-    # e.g., "machine learning" before "learning"
-    sorted_skills = sorted(ALL_SKILLS, key=len, reverse=True)
-    
-    for skill in sorted_skills:
-        skill_lower = skill.lower()
-        
-        # Check for exact match (with word boundaries)
-        pattern = r'\b' + re.escape(skill_lower) + r'\b'
-        if re.search(pattern, text_lower):
-            if skill not in found_skills:
-                found_skills.append(skill)
-    
+    for skill in sorted(ALL_SKILLS, key=len, reverse=True):
+        if skill in found_skills:
+            continue
+        found, _ = find_term(skill, text)
+        if found:
+            found_skills.append(skill)
     return found_skills
 
 
-def _extract_education(text: str) -> str:
+def _extract_education(text: str) -> Tuple[str, str]:
     """
-    Extract education level from resume text
-    
-    Uses regex patterns and education keywords
+    Extract (formatted education string, raw level key).
+    Prefers the education section; falls back to whole-document scan.
     """
-    text_lower = text.lower()
-    
-    # Look for education section
-    education_section = _extract_section(text, ["education", "academic", "qualifications", "degree"])
-    
-    if education_section:
-        level = get_education_level(education_section)
-        field = extract_field_of_study(education_section)
-        
-        level_names = {
-            "phd": "PhD",
-            "masters": "Master's",
-            "bachelors": "Bachelor's",
-            "diploma": "Diploma",
-            "certificate": "Certificate",
-            "none": ""
-        }
-        
-        level_name = level_names.get(level, "")
-        if field and level_name:
-            return f"{level_name} in {field}"
-        elif level_name:
-            return level_name
-    
-    # Fallback: search entire text
-    level = get_education_level(text)
-    field = extract_field_of_study(text)
-    
-    level_names = {
-        "phd": "PhD",
-        "masters": "Master's",
-        "bachelors": "Bachelor's",
-        "diploma": "Diploma",
-        "certificate": "Certificate",
-        "none": ""
-    }
-    
-    level_name = level_names.get(level, "")
-    if field and level_name:
-        return f"{level_name} in {field}"
-    elif level_name:
-        return level_name
-    
-    return ""
+    education_section = _extract_section(text, EDUCATION_SECTION_KEYWORDS)
+
+    for scope in (education_section, text):
+        if not scope:
+            continue
+        level = get_education_level(scope)
+        if level != "none":
+            field = extract_field_of_study(scope)
+            level_name = _LEVEL_NAMES[level]
+            formatted = f"{level_name} in {field}" if field else level_name
+            return formatted, level
+
+    return "", "none"
 
 
 def _extract_experience_years(text: str) -> float:
     """
-    Extract total years of experience from resume text
-    
-    Uses multiple patterns:
-    - "X years of experience"
-    - "X+ years"
-    - "X-Y years"
-    - Date range calculation
+    Estimate years of professional experience.
+
+    Two signals, of which the maximum is used:
+    1. Explicitly stated experience ("8 years of experience") anywhere OUTSIDE
+       the education section.
+    2. Date ranges ("2018 - Present", "since 2019") found ONLY in the work/
+       experience section, merged when overlapping and summed. Education date
+       ranges (degree years) never count as work experience.
     """
-    text_lower = text.lower()
-    years_found = []
-    
-    # Pattern 1: "X years of experience" or "X+ years of experience"
-    pattern1 = r'(\d+)\+?\s+years?\s+(?:of\s+)?experience'
-    matches1 = re.findall(pattern1, text_lower)
-    years_found.extend([float(m) for m in matches1])
-    
-    # Pattern 2: "X+ years" (standalone)
-    pattern2 = r'(\d+)\+?\s+years?\s+(?:in|with|of)'
-    matches2 = re.findall(pattern2, text_lower)
-    years_found.extend([float(m) for m in matches2])
-    
-    # Pattern 3: "X-Y years" range (take the higher number)
-    pattern3 = r'(\d+)\s*-\s*(\d+)\s+years?'
-    matches3 = re.findall(pattern3, text_lower)
-    for match in matches3:
-        years_found.append(float(match[1]))  # Take upper bound
-    
-    # Pattern 4: Date range calculation
-    # Look for patterns like "2018 - Present" or "2018 to Present"
-    date_pattern = r'(\d{4})\s*(?:-|to|–)\s*(?:present|current|(\d{4}))'
-    date_matches = re.findall(date_pattern, text_lower)
-    
-    if date_matches:
-        import datetime
-        current_year = datetime.datetime.now().year
-        for match in date_matches:
-            start_year = int(match[0])
-            end_year = int(match[1]) if match[1] else current_year
-            years_found.append(end_year - start_year)
-    
-    # Return the maximum years found (most conservative estimate)
-    if years_found:
-        return max(years_found)
-    
-    return 0.0
+    import datetime
+    current_year = datetime.datetime.now().year
+
+    education_section = _extract_section(text, EDUCATION_SECTION_KEYWORDS)
+    experience_section = _extract_section(text, EXPERIENCE_SECTION_KEYWORDS)
+
+    # ---- signal 1: stated years, outside the education section
+    stated_scope = text
+    if education_section:
+        stated_scope = text.replace(education_section, " ")
+    stated_scope = stated_scope.lower()
+
+    stated = []
+    for pattern in (
+        r'(\d{1,2})\+?\s+years?\s+(?:of\s+)?experience',
+        r'(\d{1,2})\+?\s+years?\s+(?:in|with|of)\b',
+    ):
+        stated.extend(float(m) for m in re.findall(pattern, stated_scope))
+    stated_years = max(stated) if stated else 0.0
+
+    # ---- signal 2: date ranges in the work section only
+    if experience_section:
+        range_scope = experience_section
+    elif education_section:
+        range_scope = text.replace(education_section, " ")
+    else:
+        range_scope = text
+    range_scope = range_scope.lower()
+
+    ranges = []
+    for m in re.finditer(r'(\d{4})\s*(?:-|–|to)\s*(?:(present|current|now)|(\d{4}))', range_scope):
+        start = int(m.group(1))
+        end = current_year if m.group(2) else int(m.group(3))
+        if 1960 <= start <= current_year and start <= end:
+            ranges.append((start, min(end, current_year)))
+    for m in re.finditer(r'\bsince\s+(\d{4})\b', range_scope):
+        start = int(m.group(1))
+        if 1960 <= start <= current_year:
+            ranges.append((start, current_year))
+
+    range_years = _merged_range_years(ranges)
+
+    return min(max(stated_years, range_years), 45.0)
 
 
-def _extract_name(text: str, doc = None) -> str:
+def _merged_range_years(ranges: List[Tuple[int, int]]) -> float:
+    """Sum of year spans after merging overlaps (parallel jobs don't double-count)."""
+    if not ranges:
+        return 0.0
+    ranges = sorted(ranges)
+    merged = [list(ranges[0])]
+    for start, end in ranges[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return float(sum(end - start for start, end in merged))
+
+
+def _extract_name(text: str, doc=None) -> str:
     """
     Extract candidate name from resume text
-    
+
     Uses:
     1. Look for "Name:" label
     2. First line of text (often the name)
     3. spaCy PERSON entity as fallback
     """
     lines = text.strip().split('\n')
-    
+
     # Strategy 1: Look for "Name:" label
     for line in lines[:10]:  # Check first 10 lines
         if re.match(r'^name\s*:\s*(.+)', line, re.IGNORECASE):
             name = re.match(r'^name\s*:\s*(.+)', line, re.IGNORECASE).group(1)
             return name.strip()
-    
+
     # Strategy 2: First non-empty line (often the name)
     for line in lines[:5]:
         line = line.strip()
@@ -220,13 +212,13 @@ def _extract_name(text: str, doc = None) -> str:
             # Check if it looks like a name (not an email, phone, etc.)
             if not re.search(r'[@\d\(\)]', line):
                 return line
-    
+
     # Strategy 3: spaCy PERSON entity
     if doc:
         for ent in doc.ents:
             if ent.label_ == "PERSON":
                 return ent.text
-    
+
     return ""
 
 
@@ -245,61 +237,69 @@ def _extract_phone(text: str) -> str:
         r'\+?[0-9]{1,3}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}',  # International
         r'\(?[0-9]{3}\)?[-.\s][0-9]{3}[-.\s][0-9]{4}'  # (XXX) XXX-XXXX
     ]
-    
+
     for pattern in patterns:
         matches = re.findall(pattern, text)
         if matches:
             return matches[0]
-    
+
     return ""
 
 
 def _extract_section(text: str, section_keywords: List[str]) -> str:
     """
-    Extract a specific section from resume text
-    
-    Args:
-        text: Full resume text
-        section_keywords: List of keywords that indicate section start
-    
-    Returns:
-        Text content of the section
+    Extract a specific section from resume text.
+
+    A section starts at a short line containing one of section_keywords and
+    ends at the next line that looks like a different section header.
     """
-    text_lower = text.lower()
     lines = text.split('\n')
-    
+
+    def looks_like_header(line_lower: str) -> bool:
+        # bullets/continuation lines are content, never section headers
+        return bool(line_lower) and len(line_lower) < 50 \
+            and not line_lower.startswith(('-', '•', '*', '·', '>'))
+
     section_start = -1
     section_end = len(lines)
-    
+
     # Find section start
     for i, line in enumerate(lines):
         line_lower = line.lower().strip()
+        if not looks_like_header(line_lower):
+            continue
         for keyword in section_keywords:
-            if keyword in line_lower and len(line_lower) < 50:  # Section header is usually short
+            if keyword in line_lower:
                 section_start = i
                 break
         if section_start != -1:
             break
-    
+
     if section_start == -1:
         return ""
-    
+
     # Find section end (next section header or end of text)
     next_section_keywords = [
-        "experience", "work history", "employment", "projects",
-        "skills", "certifications", "awards", "references", "interests"
+        "experience", "work history", "employment", "projects", "education",
+        "academic", "skills", "certifications", "awards", "references",
+        "interests", "volunteering", "training", "summary"
     ]
-    
+    # a keyword that is part of THIS section's header shouldn't end it
+    own_keywords = set(section_keywords)
+
     for i in range(section_start + 1, len(lines)):
         line_lower = lines[i].lower().strip()
+        if not looks_like_header(line_lower):
+            continue
         for keyword in next_section_keywords:
-            if keyword in line_lower and len(line_lower) < 50:
-                if i > section_start + 1:  # Make sure we have some content
-                    section_end = i
+            if keyword in own_keywords:
+                continue
+            if keyword in line_lower:
+                section_end = i
                 break
         if section_end != len(lines):
             break
-    
+
     # Extract section content
     section_lines = lines[section_start:section_end]
     return '\n'.join(section_lines)

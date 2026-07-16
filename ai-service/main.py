@@ -24,7 +24,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 SERVICE_API_KEY = os.environ.get("AI_SERVICE_API_KEY", "change-me-internal-key")
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt"}
+# legacy binary .doc is NOT supported (python-docx can only read .docx)
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
 app = FastAPI(
     title="Resume Screening AI Service",
@@ -51,6 +52,10 @@ class ScreenResponse(BaseModel):
     extracted_email: str
     bias_flag: bool
     bias_flag_reason: Optional[str]
+    # per-qualification evidence (score and display come from the same matcher)
+    matched_skills: List[str] = []
+    missing_required: List[str] = []
+    missing_optional: List[str] = []
 
 
 def _check_api_key(x_api_key: Optional[str]):
@@ -69,6 +74,8 @@ async def screen_resume(
     qualifications: str = Form("[]"),
     job_description: str = Form(""),
     job_title: str = Form(""),
+    min_experience_years: float = Form(0),
+    education_level: str = Form(""),
     x_api_key: Optional[str] = Header(default=None),
 ):
     """
@@ -100,8 +107,17 @@ async def screen_resume(
             raise HTTPException(status_code=422, detail="Could not extract text from resume")
 
         entities = extract_entities(resume_text)
-        scores = compute_score(resume_text, [q.dict() for q in quals], job_description, entities)
+        scores = compute_score(resume_text, [q.dict() for q in quals], job_description, entities,
+                               min_experience_years=min_experience_years,
+                               required_education_level=education_level)
         bias_result = detect_bias(resume_text, entities.get("name", ""))
+
+        # displayed skills = dictionary hits UNION matched job qualifications, so
+        # custom qualification terms (any industry) always show as evidence
+        displayed_skills = list(entities.get("skills", []))
+        for skill in scores.get("matched_skills", []):
+            if skill not in displayed_skills:
+                displayed_skills.append(skill)
 
         logger.info(
             "Screened '%s' for job '%s': overall=%.2f skills=%d bias=%s",
@@ -116,13 +132,16 @@ async def screen_resume(
                 "experience_match": round(scores["experience"], 2),
                 "education_match": round(scores["education"], 2),
             },
-            extracted_skills=entities.get("skills", []),
+            extracted_skills=displayed_skills,
             extracted_education=entities.get("education", ""),
             extracted_experience_years=entities.get("experience_years", 0),
             extracted_name=entities.get("name", ""),
             extracted_email=entities.get("email", ""),
             bias_flag=bias_result["flagged"],
             bias_flag_reason=bias_result["reason"],
+            matched_skills=scores.get("matched_skills", []),
+            missing_required=scores.get("missing_required", []),
+            missing_optional=scores.get("missing_optional", []),
         )
     except HTTPException:
         raise

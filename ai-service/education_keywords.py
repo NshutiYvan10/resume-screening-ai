@@ -84,6 +84,29 @@ FIELD_PATTERNS = [
 ]
 
 
+import re
+
+# Short degree abbreviations that collide with ordinary words/initials
+# ("MA" inside "suMMAry", "BE" the verb, "MS" in "MS Office"). These only
+# count when used in a clearly academic way: followed by "in <field>",
+# wrapped in parentheses, or written with dots (M.S., B.A.).
+_AMBIGUOUS_ABBREVS = {"ma", "ms", "ba", "bs", "be", "md"}
+
+
+def _keyword_found(keyword: str, text_lower: str) -> bool:
+    """Whole-word match; ambiguous 2-letter abbrevs require academic context."""
+    kw = keyword.lower()
+    pattern = r'(?<![a-z0-9])' + re.escape(kw) + r'(?![a-z0-9])'
+    for m in re.finditer(pattern, text_lower):
+        if kw not in _AMBIGUOUS_ABBREVS:
+            return True
+        after = text_lower[m.end():m.end() + 8]
+        before = text_lower[max(0, m.start() - 1):m.start()]
+        if after.startswith(' in ') or before == '(' or after.startswith(')'):
+            return True
+    return False
+
+
 def get_education_level(education_text: str) -> str:
     """
     Determine education level from text
@@ -91,16 +114,16 @@ def get_education_level(education_text: str) -> str:
     """
     if not education_text:
         return "none"
-    
+
     text_lower = education_text.lower()
-    
+
     # Check in order of highest to lowest qualification
     for level in ["phd", "masters", "bachelors", "diploma", "certificate"]:
         keywords = EDUCATION_LEVELS[level]
         for keyword in keywords:
-            if keyword.lower() in text_lower:
+            if _keyword_found(keyword, text_lower):
                 return level
-    
+
     return "none"
 
 

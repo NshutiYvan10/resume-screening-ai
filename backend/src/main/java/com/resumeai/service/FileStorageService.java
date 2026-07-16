@@ -17,7 +17,9 @@ import java.util.UUID;
 @Service
 public class FileStorageService {
 
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "doc", "txt");
+    // legacy binary .doc is rejected: the AI service cannot parse it, so accepting
+    // it would produce guaranteed screening failures
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "txt");
     private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp");
     private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -41,7 +43,7 @@ public class FileStorageService {
         String ext = extensionOf(original);
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
             throw ApiException.badRequest("Unsupported resume format ." + ext
-                    + " - allowed formats: PDF, DOCX, DOC, TXT");
+                    + " - allowed formats: PDF, DOCX, TXT");
         }
         try {
             Path dir = root.resolve("resumes").resolve(companyId.toString());

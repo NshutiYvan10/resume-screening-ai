@@ -1,12 +1,17 @@
 """
 Resume scoring module
-Implements weighted scoring algorithm using TF-IDF and cosine similarity
+
+Weighted scoring against the job's qualification matrix using the SAME
+matcher that produces the displayed skills, so score and evidence agree.
+
+Weights: skills 40% | experience 30% | education 30%
 """
 import re
 import logging
 from typing import Dict, List, Any
 from collections import Counter
-from education_keywords import get_education_score
+
+from matcher import find_term, canonicalize
 
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,237 +24,177 @@ except ImportError:  # pragma: no cover - environment fallback
 
 logger = logging.getLogger(__name__)
 
+# ordered education levels for relative comparison
+_LEVEL_RANK = {"none": 0, "certificate": 1, "diploma": 2, "bachelors": 3, "masters": 4, "phd": 5}
+
+# absolute fallback when the job specifies no education requirement
+_ABSOLUTE_EDU_SCORE = {"phd": 100, "masters": 90, "bachelors": 75, "diploma": 55, "certificate": 40, "none": 20}
+
 
 def compute_score(
     resume_text: str,
     qualifications: List[Dict[str, Any]],
     job_description: str,
-    entities: Dict[str, Any]
-) -> Dict[str, float]:
+    entities: Dict[str, Any],
+    min_experience_years: float = 0.0,
+    required_education_level: str = "",
+) -> Dict[str, Any]:
     """
-    Compute overall match score with breakdown
-    
-    Scoring weights:
-    - Skills: 40%
-    - Experience: 30%
-    - Education: 30%
-    
-    Args:
-        resume_text: Full resume text
-        qualifications: List of {skill, weight, required} dicts
-        job_description: Job description text
-        entities: Extracted entities from resume
-    
-    Returns:
-        Dict with overall, skills, experience, education scores (0-100)
+    Compute overall match score with breakdown and per-qualification evidence.
+
+    Returns dict with overall/skills/experience/education scores (0-100) plus
+    matched_skills, missing_required, missing_optional lists.
     """
     if not resume_text:
         return {
-            "overall": 0.0,
-            "skills": 0.0,
-            "experience": 0.0,
-            "education": 0.0
+            "overall": 0.0, "skills": 0.0, "experience": 0.0, "education": 0.0,
+            "matched_skills": [], "missing_required": [], "missing_optional": [],
         }
-    
-    # Compute individual scores
-    skills_score = _compute_skills_score(resume_text, qualifications, entities)
-    experience_score = _compute_experience_score(resume_text, qualifications, entities)
-    education_score = _compute_education_score(resume_text, job_description, entities)
-    
-    # Weighted overall score
-    overall = (
-        skills_score * 0.40 +
-        experience_score * 0.30 +
-        education_score * 0.30
-    )
-    
-    # Clamp to [0, 100]
-    overall = max(0.0, min(100.0, overall))
-    skills_score = max(0.0, min(100.0, skills_score))
-    experience_score = max(0.0, min(100.0, experience_score))
-    education_score = max(0.0, min(100.0, education_score))
-    
+
+    skills_score, matched, missing_required, missing_optional = _compute_skills_score(
+        resume_text, qualifications)
+    experience_score = _compute_experience_score(
+        qualifications, job_description, entities, min_experience_years)
+    education_score = _compute_education_score(
+        resume_text, job_description, entities, required_education_level)
+
+    overall = skills_score * 0.40 + experience_score * 0.30 + education_score * 0.30
+
+    def clamp(v):
+        return max(0.0, min(100.0, v))
+
     return {
-        "overall": overall,
-        "skills": skills_score,
-        "experience": experience_score,
-        "education": education_score
+        "overall": clamp(overall),
+        "skills": clamp(skills_score),
+        "experience": clamp(experience_score),
+        "education": clamp(education_score),
+        "matched_skills": matched,
+        "missing_required": missing_required,
+        "missing_optional": missing_optional,
     }
 
 
-def _compute_skills_score(
-    resume_text: str,
-    qualifications: List[Dict[str, Any]],
-    entities: Dict[str, Any]
-) -> float:
+def _compute_skills_score(resume_text: str, qualifications: List[Dict[str, Any]]):
     """
-    Compute skills match score (40% of total)
-    
-    Algorithm:
-    - For each required qualification:
-      - If skill found in resume: contribute weight × 100
-      - If skill not found AND required=True: apply 0.5 penalty
-    - Normalize to 0-100
+    Skills match (40% of total).
+
+    A found qualification earns its full weight; a missing one earns NOTHING —
+    required or not. (Previously a missing *required* skill still earned half
+    credit, which rewarded candidates for lacking must-haves.) Matching is
+    whole-word, alias-aware and negation-aware via the unified matcher.
     """
     if not qualifications:
-        return 50.0  # Neutral score if no qualifications specified
-    
-    resume_text_lower = resume_text.lower()
-    extracted_skills_lower = [s.lower() for s in entities.get("skills", [])]
-    
-    total_weight = sum(q["weight"] for q in qualifications)
-    if total_weight == 0:
-        return 50.0
-    
-    earned_score = 0.0
-    
+        return 50.0, [], [], []  # neutral when the job defines no matrix
+
+    total_weight = sum(float(q["weight"]) for q in qualifications)
+    if total_weight <= 0:
+        return 50.0, [], [], []
+
+    earned = 0.0
+    matched, missing_required, missing_optional = [], [], []
+
     for qual in qualifications:
-        skill = qual["skill"]
-        weight = qual["weight"]
-        required = qual["required"]
-        
-        # Check if skill is in extracted skills or in resume text
-        skill_found = (
-            skill.lower() in extracted_skills_lower or
-            skill.lower() in resume_text_lower
-        )
-        
-        if skill_found:
-            # Full points for found skill
-            earned_score += weight * 100
+        skill = str(qual["skill"]).strip()
+        weight = float(qual["weight"])
+        required = bool(qual.get("required"))
+
+        found, _snippet = find_term(skill, resume_text)
+        if found:
+            earned += weight * 100
+            matched.append(canonicalize(skill))
         elif required:
-            # Penalty for missing required skill (50% of weight)
-            earned_score += weight * 100 * 0.5
+            missing_required.append(canonicalize(skill))
         else:
-            # No penalty for missing optional skill
-            earned_score += 0
-    
-    # Normalize to 0-100
-    max_possible = total_weight * 100
-    if max_possible > 0:
-        skills_score = (earned_score / max_possible) * 100
-    else:
-        skills_score = 50.0
-    
-    return skills_score
+            missing_optional.append(canonicalize(skill))
+
+    return (earned / (total_weight * 100)) * 100, matched, missing_required, missing_optional
 
 
 def _compute_experience_score(
-    resume_text: str,
     qualifications: List[Dict[str, Any]],
-    entities: Dict[str, Any]
+    job_description: str,
+    entities: Dict[str, Any],
+    min_experience_years: float,
 ) -> float:
     """
-    Compute experience match score (30% of total)
-    
-    Algorithm:
-    - Extract required years from qualifications or job description
-    - Compare with extracted experience years
-    - Scoring:
-      * candidate_years >= required_years: 100
-      * candidate_years >= required_years * 0.7: 75
-      * candidate_years >= required_years * 0.4: 50
-      * else: max(10, (candidate_years / required_years) * 100)
+    Experience match (30% of total).
+
+    Required years come from the job's minExperienceYears field when set;
+    otherwise parsed from qualification text / job description; otherwise 2.
     """
-    # Extract required years from qualifications
-    required_years = 0.0
-    
-    for qual in qualifications:
-        skill = qual["skill"]
-        # Look for year requirements in skill description
-        # e.g., "3-5 years experience with Python"
-        year_match = re.search(r'(\d+)\s*-\s*(\d+)\s+years?', skill, re.IGNORECASE)
-        if year_match:
-            required_years = max(required_years, float(year_match.group(2)))
-        else:
-            year_match = re.search(r'(\d+)\+?\s+years?', skill, re.IGNORECASE)
-            if year_match:
-                required_years = max(required_years, float(year_match.group(1)))
-    
-    # If not found in qualifications, try job description
-    if required_years == 0:
-        year_match = re.search(r'(\d+)\s*-\s*(\d+)\s+years?', qualifications[0]["skill"] if qualifications else "", re.IGNORECASE)
-        if year_match:
-            required_years = float(year_match.group(2))
-    
-    # Default to 2 years if not specified
-    if required_years == 0:
+    required_years = float(min_experience_years or 0)
+
+    if required_years <= 0:
+        sources = [str(q["skill"]) for q in qualifications] + [job_description or ""]
+        for source in sources:
+            m = re.search(r'(\d{1,2})\s*-\s*(\d{1,2})\s+years?', source, re.IGNORECASE)
+            if m:
+                required_years = max(required_years, float(m.group(2)))
+                continue
+            m = re.search(r'(\d{1,2})\+?\s+years?', source, re.IGNORECASE)
+            if m:
+                required_years = max(required_years, float(m.group(1)))
+
+    if required_years <= 0:
         required_years = 2.0
-    
-    # Get candidate's experience
-    candidate_years = entities.get("experience_years", 0)
-    
-    # Calculate score
+
+    candidate_years = float(entities.get("experience_years", 0) or 0)
+
     if candidate_years >= required_years:
-        score = 100.0
-    elif candidate_years >= required_years * 0.7:
-        score = 75.0
-    elif candidate_years >= required_years * 0.4:
-        score = 50.0
-    else:
-        if required_years > 0:
-            score = max(10.0, (candidate_years / required_years) * 100)
-        else:
-            score = 50.0
-    
-    return score
+        return 100.0
+    if candidate_years >= required_years * 0.7:
+        return 75.0
+    if candidate_years >= required_years * 0.4:
+        return 50.0
+    return max(10.0, (candidate_years / required_years) * 100)
 
 
 def _compute_education_score(
     resume_text: str,
     job_description: str,
-    entities: Dict[str, Any]
+    entities: Dict[str, Any],
+    required_education_level: str,
 ) -> float:
     """
-    Compute education match score (30% of total)
-    
-    Algorithm:
-    - 60% keyword match (education level)
-    - 40% TF-IDF cosine similarity between resume and job description
-    
-    Education level scores:
-    - PhD: 100
-    - Master's: 90
-    - Bachelor's: 75
-    - Diploma: 55
-    - Certificate: 40
-    - None: 20
-    """
-    # Keyword match score (60%)
-    education_text = entities.get("education", "")
-    keyword_score = get_education_score(education_text)
-    
-    # TF-IDF similarity score (40%)
-    tfidf_score = 50.0  # Default
+    Education match (30% of total): 60% level match + 40% job-content similarity.
 
+    When the job specifies a required level, the candidate is scored RELATIVE
+    to it (meeting the bar = 100, one level short = 55, further short = 25).
+    Overqualification is never penalized. Without a required level the legacy
+    absolute scale applies.
+    """
+    candidate_level = str(entities.get("education_level", "none") or "none").lower()
+    required = (required_education_level or "").strip().lower()
+
+    if required in _LEVEL_RANK and required != "none":
+        gap = _LEVEL_RANK.get(candidate_level, 0) - _LEVEL_RANK[required]
+        if gap >= 0:
+            keyword_score = 100.0
+        elif gap == -1:
+            keyword_score = 55.0
+        elif candidate_level == "none":
+            keyword_score = 20.0
+        else:
+            keyword_score = 25.0
+    else:
+        keyword_score = float(_ABSOLUTE_EDU_SCORE.get(candidate_level, 20))
+
+    # content similarity between resume and job description (40%)
+    tfidf_score = 50.0
     if job_description and resume_text:
         try:
-            if _HAS_SKLEARN and TfidfVectorizer is not None and cosine_similarity is not None:
-                # Create TF-IDF vectors
-                vectorizer = TfidfVectorizer(
-                    max_features=1000,
-                    stop_words='english',
-                    ngram_range=(1, 2)  # Use both unigrams and bigrams
-                )
-
-                # Fit on both documents
+            if _HAS_SKLEARN and TfidfVectorizer is not None:
+                vectorizer = TfidfVectorizer(max_features=1000, stop_words='english',
+                                             ngram_range=(1, 2))
                 tfidf_matrix = vectorizer.fit_transform([resume_text, job_description])
-
-                # Compute cosine similarity
-                similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-
-                # Convert to 0-100 scale
-                tfidf_score = similarity * 100
+                tfidf_score = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]) * 100
             else:
                 tfidf_score = _compute_keyword_similarity(resume_text, job_description)
         except Exception as e:
             logger.warning(f"TF-IDF computation failed: {str(e)}")
             tfidf_score = _compute_keyword_similarity(resume_text, job_description)
-    
-    # Blend: 60% keyword + 40% TF-IDF
-    education_score = (keyword_score * 0.60) + (tfidf_score * 0.40)
-    
-    return education_score
+
+    return keyword_score * 0.60 + tfidf_score * 0.40
 
 
 def _compute_keyword_similarity(text1: str, text2: str) -> float:
@@ -271,43 +216,21 @@ def _compute_keyword_similarity(text1: str, text2: str) -> float:
     return (numerator / denominator) * 100 if denominator else 0.0
 
 
-def _compute_tfidf_similarity(text1: str, text2: str) -> float:
-    """
-    Compute similarity between two texts.
-
-    Returns:
-        Similarity score 0-100
-    """
-    return _compute_keyword_similarity(text1, text2)
-
-
 def get_score_interpretation(score: float) -> str:
-    """
-    Interpret score value
-    
-    Returns:
-        Human-readable interpretation
-    """
-    if score >= 80:
-        return "Excellent"
-    elif score >= 60:
-        return "Good"
-    elif score >= 40:
-        return "Average"
+    """Human-readable interpretation, aligned with the UI's color thresholds."""
+    if score >= 70:
+        return "Strong match"
+    elif score >= 45:
+        return "Possible match"
     else:
-        return "Poor"
+        return "Weak match"
 
 
 def get_score_color(score: float) -> str:
-    """
-    Get color code for score
-    
-    Returns:
-        Color string for UI
-    """
-    if score >= 60:
+    """Color band, aligned with the frontend (green >= 70, amber >= 45, red below)."""
+    if score >= 70:
         return "green"
-    elif score >= 35:
+    elif score >= 45:
         return "yellow"
     else:
         return "red"

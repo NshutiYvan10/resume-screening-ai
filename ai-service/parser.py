@@ -100,21 +100,22 @@ def _extract_txt(file_path: str) -> str:
 
 def _clean_text(text: str) -> str:
     """
-    Clean extracted text:
-    - Remove excessive whitespace
-    - Normalize newlines
-    - Remove special characters that could interfere with NLP
+    Clean extracted text while PRESERVING line structure.
+
+    Line structure is load-bearing: section detection (education vs experience),
+    name extraction and date-range attribution all depend on it. Only intra-line
+    whitespace is collapsed; empty lines are dropped.
     """
     if not text:
         return ""
-    
-    # Replace multiple spaces with single space
-    text = ' '.join(text.split())
-    
-    # Replace multiple newlines with single newline
-    text = "\n".join(line.strip() for line in text.split("\n") if line.strip())
-    
-    # Remove non-printable characters except newlines
-    text = "".join(char for char in text if char.isprintable() or char == '\n')
-    
-    return text.strip()
+
+    lines = []
+    for line in text.split("\n"):
+        # collapse tabs/multiple spaces within the line
+        line = ' '.join(line.split())
+        # strip non-printable characters
+        line = "".join(ch for ch in line if ch.isprintable())
+        if line:
+            lines.append(line)
+
+    return "\n".join(lines).strip()
