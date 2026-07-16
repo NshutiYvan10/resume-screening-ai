@@ -1,6 +1,7 @@
 package com.resumeai.domain;
 
 import com.resumeai.domain.enums.ApplicationStatus;
+import com.resumeai.domain.enums.RejectionReason;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -49,6 +50,16 @@ public class Application {
 
     @Column(name = "recruiter_note", columnDefinition = "text")
     private String recruiterNote;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rejection_reason", length = 40)
+    private RejectionReason rejectionReason;
+
+    @Column(name = "rejection_note", columnDefinition = "text")
+    private String rejectionNote;
+
+    @Column(name = "hired_at")
+    private Instant hiredAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "status_updated_by")

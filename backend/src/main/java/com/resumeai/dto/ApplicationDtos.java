@@ -3,10 +3,8 @@ package com.resumeai.dto;
 import com.resumeai.domain.Application;
 import com.resumeai.domain.ScreeningResult;
 import com.resumeai.domain.enums.ApplicationStatus;
+import com.resumeai.domain.enums.RejectionReason;
 import com.resumeai.domain.enums.ScreeningStatus;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -15,11 +13,6 @@ import java.util.UUID;
 public final class ApplicationDtos {
 
     private ApplicationDtos() {
-    }
-
-    public record StatusUpdateRequest(
-            @NotNull ApplicationStatus status,
-            @Size(max = 4000) String note) {
     }
 
     public record ScreeningResponse(
@@ -69,6 +62,9 @@ public final class ApplicationDtos {
             String coverLetter,
             String resumeFileName,
             String recruiterNote,
+            RejectionReason rejectionReason,
+            String rejectionNote,
+            Instant hiredAt,
             Instant appliedAt,
             Instant statusUpdatedAt,
             ScreeningResponse screening) {
@@ -89,6 +85,9 @@ public final class ApplicationDtos {
                     a.getCoverLetter(),
                     a.getResumeFileName(),
                     includeRecruiterNote ? a.getRecruiterNote() : null,
+                    includeRecruiterNote ? a.getRejectionReason() : null,
+                    includeRecruiterNote ? a.getRejectionNote() : null,
+                    a.getHiredAt(),
                     a.getAppliedAt(),
                     a.getStatusUpdatedAt(),
                     ScreeningResponse.from(a.getScreeningResult()));

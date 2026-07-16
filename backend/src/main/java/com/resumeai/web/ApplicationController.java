@@ -2,10 +2,12 @@ package com.resumeai.web;
 
 import com.resumeai.domain.enums.ApplicationStatus;
 import com.resumeai.dto.ApplicationDtos.ApplicationResponse;
-import com.resumeai.dto.ApplicationDtos.StatusUpdateRequest;
 import com.resumeai.dto.AuthDtos.MessageResponse;
 import com.resumeai.dto.CommonDtos.PageResponse;
+import com.resumeai.dto.PipelineDtos.*;
 import com.resumeai.service.ApplicationService;
+import com.resumeai.service.InterviewService;
+import com.resumeai.service.OfferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +27,8 @@ import java.util.UUID;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final InterviewService interviewService;
+    private final OfferService offerService;
 
     // ------------------------------------------------------- candidate
 
@@ -93,11 +97,120 @@ public class ApplicationController {
         return applicationService.get(id);
     }
 
-    @PutMapping("/{id}/status")
+    // ------------------------------------------------ pipeline state machine
+
+    @GetMapping("/{id}/pipeline")
     @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
-    public ApplicationResponse updateStatus(@PathVariable UUID id,
-                                            @Valid @RequestBody StatusUpdateRequest request) {
-        return applicationService.updateStatus(id, request);
+    public PipelineResponse pipeline(@PathVariable UUID id) {
+        return applicationService.pipeline(id);
+    }
+
+    @PostMapping("/{id}/advance")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public ApplicationResponse advance(@PathVariable UUID id) {
+        return applicationService.advanceStage(id);
+    }
+
+    @PostMapping("/{id}/backtrack")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public ApplicationResponse backtrack(@PathVariable UUID id) {
+        return applicationService.backtrackStage(id);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public ApplicationResponse reject(@PathVariable UUID id, @Valid @RequestBody RejectRequest request) {
+        return applicationService.reject(id, request);
+    }
+
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public ApplicationResponse reopen(@PathVariable UUID id) {
+        return applicationService.reopen(id);
+    }
+
+    @PostMapping("/{id}/hire")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public ApplicationResponse hire(@PathVariable UUID id) {
+        return applicationService.markHired(id);
+    }
+
+    @PostMapping("/{id}/notes")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse addNote(@PathVariable UUID id, @Valid @RequestBody NoteRequest request) {
+        applicationService.addNote(id, request);
+        return new MessageResponse("Note added");
+    }
+
+    // -------------------------------------------------------- interviews
+
+    @PostMapping("/{id}/interviews")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse scheduleInterview(@PathVariable UUID id,
+                                             @Valid @RequestBody InterviewRequest request) {
+        interviewService.schedule(id, request);
+        return new MessageResponse("Interview scheduled");
+    }
+
+    @PostMapping("/interviews/{interviewId}/complete")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse completeInterview(@PathVariable UUID interviewId) {
+        interviewService.complete(interviewId);
+        return new MessageResponse("Interview marked completed");
+    }
+
+    @PostMapping("/interviews/{interviewId}/cancel")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse cancelInterview(@PathVariable UUID interviewId) {
+        interviewService.cancel(interviewId);
+        return new MessageResponse("Interview cancelled");
+    }
+
+    @PostMapping("/interviews/{interviewId}/feedback")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse submitFeedback(@PathVariable UUID interviewId,
+                                          @Valid @RequestBody FeedbackRequest request) {
+        interviewService.submitFeedback(interviewId, request);
+        return new MessageResponse("Scorecard submitted");
+    }
+
+    // ------------------------------------------------------------- offers
+
+    @PostMapping("/{id}/offer")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse createOffer(@PathVariable UUID id, @Valid @RequestBody OfferRequest request) {
+        offerService.create(id, request);
+        return new MessageResponse("Offer created");
+    }
+
+    @PutMapping("/offers/{offerId}")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse reviseOffer(@PathVariable UUID offerId,
+                                       @Valid @RequestBody OfferRequest request) {
+        offerService.revise(offerId, request);
+        return new MessageResponse("Offer revised");
+    }
+
+    @PostMapping("/offers/{offerId}/approve")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public MessageResponse approveOffer(@PathVariable UUID offerId) {
+        offerService.approve(offerId);
+        return new MessageResponse("Offer approved");
+    }
+
+    @PostMapping("/offers/{offerId}/extend")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse extendOffer(@PathVariable UUID offerId) {
+        offerService.extend(offerId);
+        return new MessageResponse("Offer extended to the candidate");
+    }
+
+    @PostMapping("/offers/{offerId}/outcome")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public MessageResponse offerOutcome(@PathVariable UUID offerId,
+                                        @Valid @RequestBody OfferOutcomeRequest request) {
+        offerService.recordOutcome(offerId, request);
+        return new MessageResponse("Offer outcome recorded");
     }
 
     @PostMapping("/{id}/rescreen")

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,6 +28,13 @@ public class UserController {
                                            @RequestParam(defaultValue = "0") int page,
                                            @RequestParam(defaultValue = "20") int size) {
         return userService.list(companyId, role, status, search, page, size);
+    }
+
+    /** Active team members of the caller's company — used for interview panel selection. */
+    @GetMapping("/team")
+    @PreAuthorize("hasAnyRole('COMPANY_ADMIN','RECRUITER')")
+    public List<UserResponse> team() {
+        return userService.activeTeamMembers();
     }
 
     @GetMapping("/{id}")

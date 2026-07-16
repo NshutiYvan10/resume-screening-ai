@@ -3,25 +3,40 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Download, AlertTriangle, Mail, Phone, RefreshCw, GraduationCap, Briefcase,
-  CheckCircle2, XCircle, MinusCircle,
+  CheckCircle2, XCircle, MinusCircle, ArrowRight, RotateCcw, Undo2, PartyPopper,
 } from 'lucide-react';
-import { api, apiErrorMessage, tokenStore } from '../../lib/api';
+import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { PageLoader, StatusPill, Modal, Field, Spinner } from '../../components/ui';
 import { ScoreRing, ScoreBar, ScreeningStatusBadge } from '../../components/ScoreBadge';
+import StageProgress from '../../components/pipeline/StageProgress';
+import InterviewsCard from '../../components/pipeline/InterviewsCard';
+import OfferCard from '../../components/pipeline/OfferCard';
+import TimelineCard from '../../components/pipeline/TimelineCard';
 import { APPLICATION_STATUS_STYLES, formatDateTime, humanize, timeAgo } from '../../lib/format';
-import type { Application, ApplicationStatus } from '../../types';
+import type { Application, Pipeline, RejectionReason } from '../../types';
 
-const NEXT_STATUSES: ApplicationStatus[] = [
-  'UNDER_REVIEW', 'SHORTLISTED', 'INTERVIEW', 'OFFERED', 'HIRED', 'REJECTED',
+const REJECTION_REASONS: RejectionReason[] = [
+  'MISSING_REQUIRED_SKILLS', 'INSUFFICIENT_EXPERIENCE', 'EDUCATION_REQUIREMENTS',
+  'FAILED_INTERVIEW', 'BETTER_CANDIDATE_SELECTED', 'SALARY_EXPECTATIONS',
+  'POSITION_CLOSED', 'UNRESPONSIVE', 'OTHER',
 ];
+
+// human labels for the next stage, per current stage
+const ADVANCE_LABEL: Record<string, string> = {
+  SUBMITTED: 'Move to Under Review',
+  UNDER_REVIEW: 'Shortlist candidate',
+  SHORTLISTED: 'Move to Interview',
+};
 
 export default function ApplicationDetail() {
   const { applicationId } = useParams();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [statusModal, setStatusModal] = useState<ApplicationStatus | null>(null);
-  const [note, setNote] = useState('');
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reject, setReject] = useState({
+    reason: 'BETTER_CANDIDATE_SELECTED' as RejectionReason, internalNote: '', candidateMessage: '',
+  });
 
   const { data: app, isLoading } = useQuery({
     queryKey: ['application', applicationId],
@@ -32,13 +47,37 @@ export default function ApplicationDetail() {
         : false,
   });
 
-  const updateStatus = useMutation({
-    mutationFn: async () => api.put(`/applications/${applicationId}/status`, { status: statusModal, note }),
+  const { data: pipeline } = useQuery({
+    queryKey: ['pipeline', applicationId],
+    queryFn: async () => (await api.get<Pipeline>(`/applications/${applicationId}/pipeline`)).data,
+  });
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+    queryClient.invalidateQueries({ queryKey: ['pipeline', applicationId] });
+  };
+
+  const stageAction = useMutation({
+    mutationFn: async (verb: 'advance' | 'backtrack' | 'reopen' | 'hire') =>
+      api.post(`/applications/${applicationId}/${verb}`),
+    onSuccess: (_d, verb) => {
+      toast(verb === 'hire' ? 'Candidate marked hired — onboarding handoff sent' : 'Stage updated', 'success');
+      refresh();
+    },
+    onError: (err) => toast(apiErrorMessage(err), 'error'),
+  });
+
+  const doReject = useMutation({
+    mutationFn: async () =>
+      api.post(`/applications/${applicationId}/reject`, {
+        reason: reject.reason,
+        internalNote: reject.internalNote.trim() || undefined,
+        candidateMessage: reject.candidateMessage.trim() || undefined,
+      }),
     onSuccess: () => {
-      toast('Status updated — candidate notified', 'success');
-      setStatusModal(null);
-      setNote('');
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+      toast('Application rejected — candidate notified', 'success');
+      setRejectOpen(false);
+      refresh();
     },
     onError: (err) => toast(apiErrorMessage(err), 'error'),
   });
@@ -121,6 +160,23 @@ export default function ApplicationDetail() {
           <span>Applied {timeAgo(app.appliedAt)}</span>
         </div>
       </div>
+
+      {/* pipeline progress */}
+      <div className="mt-5">
+        <StageProgress status={app.status} />
+      </div>
+
+      {/* rejection record */}
+      {app.status === 'REJECTED' && app.rejectionReason && (
+        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">
+            Rejection reason: {humanize(app.rejectionReason)}
+          </p>
+          {app.rejectionNote && (
+            <p className="mt-1 text-sm text-red-600">Internal note: {app.rejectionNote}</p>
+          )}
+        </div>
+      )}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         {/* AI analysis */}
@@ -250,6 +306,16 @@ export default function ApplicationDetail() {
             </div>
           )}
 
+          {/* interviews: shown once the candidate reaches the interview stage or has history */}
+          {(app.status === 'INTERVIEW' || !!pipeline?.interviews.length) && (
+            <InterviewsCard
+              applicationId={applicationId!}
+              interviews={pipeline?.interviews || []}
+              canSchedule={!!pipeline?.allowedActions.includes('SCHEDULE_INTERVIEW')}
+              onChanged={refresh}
+            />
+          )}
+
           {app.coverLetter && (
             <div className="card p-6">
               <h2 className="mb-3 font-semibold text-slate-800">Cover letter</h2>
@@ -258,66 +324,125 @@ export default function ApplicationDetail() {
           )}
         </div>
 
-        {/* decision panel */}
+        {/* pipeline action + offer + timeline panel */}
         <div className="space-y-5">
           <div className="card p-6">
-            <h2 className="mb-3 font-semibold text-slate-800">Move candidate</h2>
+            <h2 className="mb-3 font-semibold text-slate-800">Actions</h2>
             <div className="space-y-2">
-              {NEXT_STATUSES.filter((st) => st !== app.status).map((st) => (
+              {pipeline?.allowedActions.includes('ADVANCE') && (
                 <button
-                  key={st}
-                  onClick={() => setStatusModal(st)}
-                  disabled={app.status === 'HIRED' || app.status === 'WITHDRAWN'}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50 disabled:opacity-40"
+                  onClick={() => stageAction.mutate('advance')}
+                  disabled={stageAction.isPending}
+                  className="btn-primary w-full justify-start"
                 >
-                  {humanize(st)}
+                  <ArrowRight className="h-4 w-4" />
+                  {ADVANCE_LABEL[app.status] || 'Advance'}
                 </button>
-              ))}
-            </div>
-            {(app.status === 'HIRED' || app.status === 'WITHDRAWN') && (
-              <p className="mt-3 text-xs text-slate-400">
-                This application is {humanize(app.status).toLowerCase()} and can no longer be changed.
-              </p>
-            )}
-          </div>
-
-          {app.recruiterNote && (
-            <div className="card p-5">
-              <p className="text-xs font-medium text-slate-400">Latest recruiter note</p>
-              <p className="mt-1 text-sm text-slate-600">{app.recruiterNote}</p>
-              {app.statusUpdatedAt && (
-                <p className="mt-2 text-xs text-slate-400">{formatDateTime(app.statusUpdatedAt)}</p>
+              )}
+              {pipeline?.allowedActions.includes('MARK_HIRED') && (
+                <button
+                  onClick={() => stageAction.mutate('hire')}
+                  disabled={stageAction.isPending}
+                  className="btn-primary w-full justify-start"
+                >
+                  <PartyPopper className="h-4 w-4" /> Mark hired
+                </button>
+              )}
+              {pipeline?.allowedActions.includes('REJECT') && (
+                <button
+                  onClick={() => setRejectOpen(true)}
+                  className="btn-secondary w-full justify-start text-red-600"
+                >
+                  <XCircle className="h-4 w-4" /> Reject…
+                </button>
+              )}
+              {pipeline?.allowedActions.includes('REOPEN') && (
+                <button
+                  onClick={() => stageAction.mutate('reopen')}
+                  disabled={stageAction.isPending}
+                  className="btn-secondary w-full justify-start"
+                >
+                  <RotateCcw className="h-4 w-4" /> Reopen application
+                </button>
+              )}
+              {pipeline?.allowedActions.includes('BACKTRACK') && (
+                <button
+                  onClick={() => stageAction.mutate('backtrack')}
+                  disabled={stageAction.isPending}
+                  className="btn-ghost w-full justify-start text-xs"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Move back one stage (admin)
+                </button>
+              )}
+              {app.status === 'INTERVIEW' && (
+                <p className="pt-1 text-xs text-slate-400">
+                  Moving to Offered happens by extending an approved offer below.
+                </p>
+              )}
+              {app.status === 'HIRED' && (
+                <p className="flex items-center gap-1.5 text-sm text-green-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Hired{app.hiredAt ? ` on ${formatDateTime(app.hiredAt)}` : ''} — onboarding handoff sent.
+                </p>
+              )}
+              {app.status === 'WITHDRAWN' && (
+                <p className="text-xs text-slate-400">The candidate withdrew — no actions available.</p>
               )}
             </div>
+          </div>
+
+          {/* offer workflow: relevant from the interview stage onward */}
+          {(app.status === 'INTERVIEW' || app.status === 'OFFERED' || app.status === 'HIRED' || pipeline?.offer) && (
+            <OfferCard
+              applicationId={applicationId!}
+              offer={pipeline?.offer}
+              canCreate={!!pipeline?.allowedActions.includes('CREATE_OFFER')}
+              onChanged={refresh}
+            />
           )}
+
+          <TimelineCard
+            applicationId={applicationId!}
+            events={pipeline?.timeline || []}
+            canAddNote={!!pipeline?.allowedActions.includes('ADD_NOTE')}
+            onChanged={refresh}
+          />
         </div>
       </div>
 
-      <Modal
-        open={!!statusModal}
-        onClose={() => setStatusModal(null)}
-        title={`Move to ${humanize(statusModal || '')}`}
-      >
+      {/* reject modal: standardized reason is mandatory */}
+      <Modal open={rejectOpen} onClose={() => setRejectOpen(false)} title="Reject application">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            updateStatus.mutate();
+            doReject.mutate();
           }}
           className="space-y-4"
         >
-          <p className="text-sm text-slate-500">
-            The candidate will be notified of this change by email and in-app notification.
-          </p>
-          <Field label="Note to attach" hint="Optional — visible to your team">
-            <textarea className="input min-h-24" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Field label="Reason" required hint="Internal — kept for compliance and consistency analysis, never sent to the candidate">
+            <select
+              className="input"
+              value={reject.reason}
+              onChange={(e) => setReject({ ...reject, reason: e.target.value as RejectionReason })}
+            >
+              {REJECTION_REASONS.map((r) => (
+                <option key={r} value={r}>{humanize(r)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Internal note" hint="Visible to your team on the timeline">
+            <textarea className="input min-h-16" value={reject.internalNote}
+              onChange={(e) => setReject({ ...reject, internalNote: e.target.value })} />
+          </Field>
+          <Field label="Message to candidate" hint="Optional — appended to the standard rejection email. Keep it brief and job-related.">
+            <textarea className="input min-h-16" value={reject.candidateMessage}
+              onChange={(e) => setReject({ ...reject, candidateMessage: e.target.value })} />
           </Field>
           <div className="flex justify-end gap-2">
-            <button type="button" className="btn-secondary" onClick={() => setStatusModal(null)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={updateStatus.isPending}>
-              {updateStatus.isPending && <Spinner className="h-4 w-4" />}
-              Confirm
+            <button type="button" className="btn-secondary" onClick={() => setRejectOpen(false)}>Cancel</button>
+            <button type="submit" className="btn-danger" disabled={doReject.isPending}>
+              {doReject.isPending && <Spinner className="h-4 w-4" />}
+              Reject & notify candidate
             </button>
           </div>
         </form>

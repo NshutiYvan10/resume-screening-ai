@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -49,6 +50,20 @@ public class UserService {
                 userRepository.search(companyId, role, status, emptyToNull(search),
                         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))),
                 UserResponse::from);
+    }
+
+    /** Active company-admin/recruiter colleagues of the caller (interview panel picker). */
+    @Transactional(readOnly = true)
+    public List<UserResponse> activeTeamMembers() {
+        UserPrincipal actor = SecurityUtils.requireCurrentUser();
+        if (actor.getCompanyId() == null) {
+            throw ApiException.forbidden("You are not associated with a company");
+        }
+        return userRepository.findByCompanyIdAndRoleIn(actor.getCompanyId(),
+                        List.of(Role.COMPANY_ADMIN, Role.RECRUITER)).stream()
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                .map(UserResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)

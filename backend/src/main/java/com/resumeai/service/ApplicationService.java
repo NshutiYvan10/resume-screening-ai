@@ -2,15 +2,20 @@ package com.resumeai.service;
 
 import com.resumeai.common.exception.ApiException;
 import com.resumeai.domain.Application;
+import com.resumeai.domain.Interview;
 import com.resumeai.domain.Job;
+import com.resumeai.domain.Offer;
 import com.resumeai.domain.ScreeningResult;
 import com.resumeai.domain.User;
 import com.resumeai.domain.enums.*;
 import com.resumeai.dto.ApplicationDtos.ApplicationResponse;
-import com.resumeai.dto.ApplicationDtos.StatusUpdateRequest;
 import com.resumeai.dto.CommonDtos.PageResponse;
+import com.resumeai.dto.PipelineDtos.*;
 import com.resumeai.repository.ApplicationRepository;
+import com.resumeai.repository.InterviewFeedbackRepository;
+import com.resumeai.repository.InterviewRepository;
 import com.resumeai.repository.JobRepository;
+import com.resumeai.repository.OfferRepository;
 import com.resumeai.repository.UserRepository;
 import com.resumeai.security.SecurityUtils;
 import com.resumeai.security.UserPrincipal;
@@ -29,7 +34,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,13 +50,33 @@ public class ApplicationService {
     private static final Set<ApplicationStatus> LOCKED_STATES =
             EnumSet.of(ApplicationStatus.WITHDRAWN, ApplicationStatus.HIRED);
 
+    /**
+     * The enforced pipeline: candidates advance ONE stage at a time along this
+     * path. OFFERED is entered only by extending an approved offer, and HIRED
+     * only once that offer is accepted — never by a direct button.
+     */
+    private static final Map<ApplicationStatus, ApplicationStatus> NEXT_STAGE = Map.of(
+            ApplicationStatus.SUBMITTED, ApplicationStatus.UNDER_REVIEW,
+            ApplicationStatus.UNDER_REVIEW, ApplicationStatus.SHORTLISTED,
+            ApplicationStatus.SHORTLISTED, ApplicationStatus.INTERVIEW);
+
+    private static final Map<ApplicationStatus, ApplicationStatus> PREVIOUS_STAGE = Map.of(
+            ApplicationStatus.UNDER_REVIEW, ApplicationStatus.SUBMITTED,
+            ApplicationStatus.SHORTLISTED, ApplicationStatus.UNDER_REVIEW,
+            ApplicationStatus.INTERVIEW, ApplicationStatus.SHORTLISTED,
+            ApplicationStatus.OFFERED, ApplicationStatus.INTERVIEW);
+
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final InterviewRepository interviewRepository;
+    private final InterviewFeedbackRepository interviewFeedbackRepository;
+    private final OfferRepository offerRepository;
     private final FileStorageService fileStorageService;
     private final ScreeningService screeningService;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final ApplicationEventService eventService;
 
     // ---------------------------------------------------------- candidate
 
@@ -122,6 +149,8 @@ public class ApplicationService {
         auditService.log(reapplied ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
                 "APPLICATION", application.getId().toString(),
                 Map.of("jobTitle", job.getTitle(), "jobId", jobId.toString()));
+        eventService.record(application, ApplicationEventType.APPLIED,
+                Map.of("resubmitted", reapplied));
 
         // confirmation to the candidate (in-app + email)
         notificationService.notify(candidate, NotificationType.APPLICATION_RECEIVED,
@@ -184,6 +213,7 @@ public class ApplicationService {
 
         auditService.log("APPLICATION_WITHDRAWN", "APPLICATION", applicationId.toString(),
                 Map.of("jobTitle", application.getJob().getTitle()));
+        eventService.record(application, ApplicationEventType.WITHDRAWN, Map.of());
         return ApplicationResponse.from(application, false, false);
     }
 
@@ -278,37 +308,302 @@ public class ApplicationService {
         return ApplicationResponse.from(application, true, true);
     }
 
+    // ------------------------------------------------- pipeline state machine
+
+    /** Advance one stage along the enforced path (through INTERVIEW). */
     @Transactional
-    public ApplicationResponse updateStatus(UUID applicationId, StatusUpdateRequest request) {
+    public ApplicationResponse advanceStage(UUID applicationId) {
+        Application application = find(applicationId);
+        requireRecruiterAccess(application.getJob().getCompany().getId());
+        requireActiveStage(application);
+
+        ApplicationStatus next = NEXT_STAGE.get(application.getStatus());
+        if (next == null) {
+            if (application.getStatus() == ApplicationStatus.INTERVIEW) {
+                throw ApiException.badRequest(
+                        "Moving to Offered requires creating an offer, getting it approved and extending it");
+            }
+            if (application.getStatus() == ApplicationStatus.OFFERED) {
+                throw ApiException.badRequest(
+                        "Moving to Hired requires the candidate to accept the offer — use Mark hired");
+            }
+            throw ApiException.badRequest("Cannot advance from " + application.getStatus());
+        }
+        transitionTo(application, next);
+        return ApplicationResponse.from(application, true, true);
+    }
+
+    /** Admin-only correction: move back one stage. */
+    @Transactional
+    public ApplicationResponse backtrackStage(UUID applicationId) {
+        Application application = find(applicationId);
+        requireCompanyAdminAccess(application);
+        requireActiveStage(application);
+
+        ApplicationStatus previous = PREVIOUS_STAGE.get(application.getStatus());
+        if (previous == null) {
+            throw ApiException.badRequest("Cannot move back from " + application.getStatus());
+        }
+        if (application.getStatus() == ApplicationStatus.OFFERED) {
+            Offer offer = offerRepository.findByApplicationId(applicationId).orElse(null);
+            if (offer != null && (offer.getStatus() == OfferStatus.EXTENDED
+                    || offer.getStatus() == OfferStatus.ACCEPTED)) {
+                throw ApiException.badRequest(
+                        "Resolve the outstanding offer (declined) before moving the candidate back");
+            }
+        }
+        transitionTo(application, previous);
+        return ApplicationResponse.from(application, true, true);
+    }
+
+    /** Reject from any active stage. A standardized reason is mandatory. */
+    @Transactional
+    public ApplicationResponse reject(UUID applicationId, RejectRequest request) {
+        UserPrincipal actor = SecurityUtils.requireCurrentUser();
+        Application application = find(applicationId);
+        requireRecruiterAccess(application.getJob().getCompany().getId());
+        requireActiveStage(application);
+
+        ApplicationStatus from = application.getStatus();
+        application.setStatus(ApplicationStatus.REJECTED);
+        application.setRejectionReason(request.reason());
+        application.setRejectionNote(request.internalNote());
+        application.setStatusUpdatedBy(userRepository.getReferenceById(actor.getId()));
+        application.setStatusUpdatedAt(Instant.now());
+
+        eventService.record(application, ApplicationEventType.REJECTED, Map.of(
+                "from", from.name(), "reason", request.reason().name(),
+                "internalNote", request.internalNote() != null ? request.internalNote() : ""));
+        auditService.log("APPLICATION_REJECTED", "APPLICATION", applicationId.toString(),
+                Map.of("from", from.name(), "reason", request.reason().name(),
+                        "candidate", application.getCandidate().getEmail(),
+                        "jobTitle", application.getJob().getTitle()));
+
+        // candidate-facing message stays minimal and job-related; the internal
+        // reason code is never sent to the candidate
+        String jobTitle = application.getJob().getTitle();
+        String company = application.getJob().getCompany().getName();
+        String message = "Thank you for your interest in " + jobTitle + " at " + company
+                + ". After careful consideration, they have decided to move forward with other candidates.";
+        if (request.candidateMessage() != null && !request.candidateMessage().isBlank()) {
+            message += " Message from the hiring team: " + request.candidateMessage().trim();
+        }
+        notificationService.notify(application.getCandidate(),
+                NotificationType.APPLICATION_STATUS_CHANGED,
+                "Update on your application for " + jobTitle, message,
+                "/candidate/applications", true);
+
+        return ApplicationResponse.from(application, true, true);
+    }
+
+    /** Admin-only: reopen a rejected application to the stage it was rejected from. */
+    @Transactional
+    public ApplicationResponse reopen(UUID applicationId) {
+        Application application = find(applicationId);
+        requireCompanyAdminAccess(application);
+        if (application.getStatus() != ApplicationStatus.REJECTED) {
+            throw ApiException.badRequest("Only rejected applications can be reopened");
+        }
+
+        ApplicationStatus target = eventService.timeline(applicationId).stream()
+                .filter(e -> e.getType() == ApplicationEventType.REJECTED)
+                .findFirst()
+                .map(e -> {
+                    Object from = e.getDetails() != null ? e.getDetails().get("from") : null;
+                    try {
+                        return from != null ? ApplicationStatus.valueOf(from.toString())
+                                : ApplicationStatus.UNDER_REVIEW;
+                    } catch (IllegalArgumentException ex) {
+                        return ApplicationStatus.UNDER_REVIEW;
+                    }
+                })
+                .orElse(ApplicationStatus.UNDER_REVIEW);
+
+        application.setRejectionReason(null);
+        application.setRejectionNote(null);
+        transitionTo(application, target);
+        eventService.record(application, ApplicationEventType.REOPENED, Map.of("to", target.name()));
+        return ApplicationResponse.from(application, true, true);
+    }
+
+    /** Final step: requires an ACCEPTED offer. Fires the onboarding handoff. */
+    @Transactional
+    public ApplicationResponse markHired(UUID applicationId) {
+        Application application = find(applicationId);
+        requireRecruiterAccess(application.getJob().getCompany().getId());
+        if (application.getStatus() != ApplicationStatus.OFFERED) {
+            throw ApiException.badRequest("Only candidates with an extended offer can be hired");
+        }
+        Offer offer = offerRepository.findByApplicationId(applicationId)
+                .orElseThrow(() -> ApiException.badRequest("No offer exists for this application"));
+        if (offer.getStatus() != OfferStatus.ACCEPTED) {
+            throw ApiException.badRequest("The offer must be accepted before marking the candidate hired");
+        }
+
+        application.setHiredAt(Instant.now());
+        transitionTo(application, ApplicationStatus.HIRED);
+        eventService.record(application, ApplicationEventType.HIRED, Map.of(
+                "startDate", offer.getStartDate() != null ? offer.getStartDate().toString() : "",
+                "salary", offer.getSalary() + " " + offer.getCurrency()));
+
+        // onboarding handoff: alert every company admin with the start date
+        String startInfo = offer.getStartDate() != null
+                ? " Start date: " + offer.getStartDate() + "." : "";
+        userRepository.findByCompanyIdAndRoleIn(application.getJob().getCompany().getId(),
+                        List.of(Role.COMPANY_ADMIN))
+                .forEach(admin -> notificationService.notify(admin, NotificationType.PIPELINE,
+                        "New hire: " + application.getCandidate().getFullName(),
+                        application.getCandidate().getFullName() + " accepted the offer for "
+                                + application.getJob().getTitle() + " and is marked hired."
+                                + startInfo + " Begin onboarding preparation.",
+                        "/company/applications/" + applicationId, false));
+
+        return ApplicationResponse.from(application, true, true);
+    }
+
+    /** Append a note to the candidate's timeline (never overwritten). */
+    @Transactional
+    public void addNote(UUID applicationId, NoteRequest request) {
+        Application application = find(applicationId);
+        requireRecruiterAccess(application.getJob().getCompany().getId());
+        eventService.record(application, ApplicationEventType.NOTE_ADDED,
+                Map.of("text", request.text().trim()));
+    }
+
+    /** Composite pipeline workspace payload: interviews, offer, timeline, legal actions. */
+    @Transactional(readOnly = true)
+    public PipelineResponse pipeline(UUID applicationId) {
         UserPrincipal actor = SecurityUtils.requireCurrentUser();
         Application application = find(applicationId);
         requireRecruiterAccess(application.getJob().getCompany().getId());
 
-        ApplicationStatus newStatus = request.status();
-        if (newStatus == ApplicationStatus.SUBMITTED || newStatus == ApplicationStatus.WITHDRAWN) {
-            throw ApiException.badRequest("Applications cannot be moved to " + newStatus + " manually");
-        }
-        if (LOCKED_STATES.contains(application.getStatus())) {
-            throw ApiException.badRequest("Application in status " + application.getStatus()
-                    + " can no longer be updated");
-        }
-        if (application.getStatus() == newStatus) {
-            throw ApiException.badRequest("Application is already " + newStatus);
-        }
+        List<InterviewResponse> interviews = interviewRepository
+                .findByApplicationIdOrderByScheduledAtAsc(applicationId).stream()
+                .map(i -> toInterviewResponse(i, actor))
+                .toList();
 
-        ApplicationStatus previous = application.getStatus();
-        application.setStatus(newStatus);
-        application.setRecruiterNote(request.note());
+        OfferResponse offer = offerRepository.findByApplicationId(applicationId)
+                .map(OfferResponse::from).orElse(null);
+
+        List<EventResponse> timeline = eventService.timeline(applicationId).stream()
+                .map(EventResponse::from).toList();
+
+        return new PipelineResponse(interviews, offer, timeline,
+                allowedActions(application, actor));
+    }
+
+    /**
+     * Interview payload with the structured-hiring visibility rule: a panelist
+     * who has not submitted their own scorecard cannot read colleagues'
+     * feedback (prevents anchoring bias). Non-panel recruiters/admins see all.
+     */
+    private InterviewResponse toInterviewResponse(Interview interview, UserPrincipal viewer) {
+        boolean viewerOnPanel = interview.getPanel().stream()
+                .anyMatch(u -> u.getId().equals(viewer.getId()));
+        boolean viewerSubmitted = interview.getFeedback().stream()
+                .anyMatch(f -> f.getInterviewer().getId().equals(viewer.getId()));
+        boolean hideOthers = viewerOnPanel && !viewerSubmitted;
+
+        List<FeedbackResponse> feedback = interview.getFeedback().stream()
+                .map(f -> hideOthers && !f.getInterviewer().getId().equals(viewer.getId())
+                        ? FeedbackResponse.hidden(f)
+                        : FeedbackResponse.from(f))
+                .toList();
+
+        List<PanelistResponse> panel = interview.getPanel().stream()
+                .map(u -> new PanelistResponse(u.getId(), u.getFullName(),
+                        interview.getFeedback().stream()
+                                .anyMatch(f -> f.getInterviewer().getId().equals(u.getId()))))
+                .toList();
+
+        return new InterviewResponse(interview.getId(), interview.getScheduledAt(),
+                interview.getDurationMinutes(), interview.getType(), interview.getLocation(),
+                interview.getNotes(), interview.getStatus(),
+                interview.getCreatedBy() != null ? interview.getCreatedBy().getFullName() : null,
+                panel, feedback, viewerOnPanel, viewerSubmitted);
+    }
+
+    /** Which pipeline actions the current viewer may take right now (drives the UI). */
+    private List<String> allowedActions(Application application, UserPrincipal actor) {
+        List<String> actions = new ArrayList<>();
+        ApplicationStatus status = application.getStatus();
+        boolean isAdmin = actor.getRole() == Role.COMPANY_ADMIN;
+        Offer offer = offerRepository.findByApplicationId(application.getId()).orElse(null);
+
+        switch (status) {
+            case SUBMITTED, UNDER_REVIEW, SHORTLISTED -> {
+                actions.add("ADVANCE");
+                actions.add("REJECT");
+                if (isAdmin && PREVIOUS_STAGE.containsKey(status)) {
+                    actions.add("BACKTRACK");
+                }
+            }
+            case INTERVIEW -> {
+                actions.add("SCHEDULE_INTERVIEW");
+                actions.add("REJECT");
+                if (offer == null) {
+                    actions.add("CREATE_OFFER");
+                }
+                if (isAdmin) {
+                    actions.add("BACKTRACK");
+                }
+            }
+            case OFFERED -> {
+                actions.add("REJECT");
+                if (offer != null && offer.getStatus() == OfferStatus.ACCEPTED) {
+                    actions.add("MARK_HIRED");
+                }
+                if (isAdmin) {
+                    actions.add("BACKTRACK");
+                }
+            }
+            case REJECTED -> {
+                if (isAdmin) {
+                    actions.add("REOPEN");
+                }
+            }
+            default -> {
+            }
+        }
+        if (status != ApplicationStatus.HIRED && status != ApplicationStatus.WITHDRAWN
+                && status != ApplicationStatus.REJECTED) {
+            actions.add("ADD_NOTE");
+        }
+        return actions;
+    }
+
+    /** Shared stage-move bookkeeping: status, attribution, event, audit, candidate notice. */
+    void transitionTo(Application application, ApplicationStatus next) {
+        UserPrincipal actor = SecurityUtils.requireCurrentUser();
+        ApplicationStatus from = application.getStatus();
+        application.setStatus(next);
         application.setStatusUpdatedBy(userRepository.getReferenceById(actor.getId()));
         application.setStatusUpdatedAt(Instant.now());
 
-        auditService.log("APPLICATION_STATUS_CHANGED", "APPLICATION", applicationId.toString(),
-                Map.of("from", previous.name(), "to", newStatus.name(),
+        eventService.record(application, ApplicationEventType.STAGE_CHANGED,
+                Map.of("from", from.name(), "to", next.name()));
+        auditService.log("APPLICATION_STATUS_CHANGED", "APPLICATION",
+                application.getId().toString(),
+                Map.of("from", from.name(), "to", next.name(),
                         "candidate", application.getCandidate().getEmail(),
                         "jobTitle", application.getJob().getTitle()));
+        notifyCandidateOfStatus(application, next);
+    }
 
-        notifyCandidateOfStatus(application, newStatus);
-        return ApplicationResponse.from(application, true, true);
+    private void requireActiveStage(Application application) {
+        if (LOCKED_STATES.contains(application.getStatus())
+                || application.getStatus() == ApplicationStatus.REJECTED) {
+            throw ApiException.badRequest("Application in status " + application.getStatus()
+                    + " can no longer be updated");
+        }
+    }
+
+    private void requireCompanyAdminAccess(Application application) {
+        UserPrincipal actor = SecurityUtils.requireCurrentUser();
+        requireRecruiterAccess(application.getJob().getCompany().getId());
+        if (actor.getRole() != Role.COMPANY_ADMIN) {
+            throw ApiException.forbidden("Only company administrators can perform this correction");
+        }
     }
 
     @Transactional(readOnly = true)

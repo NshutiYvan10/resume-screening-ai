@@ -219,9 +219,89 @@ export interface Application {
   coverLetter?: string;
   resumeFileName: string;
   recruiterNote?: string;
+  rejectionReason?: RejectionReason;
+  rejectionNote?: string;
+  hiredAt?: string;
   appliedAt: string;
   statusUpdatedAt?: string;
   screening?: Screening;
+}
+
+// ---------------------------------------------------------------- pipeline
+
+export type InterviewType = 'PHONE' | 'VIDEO' | 'ONSITE' | 'TECHNICAL';
+export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type FeedbackRecommendation = 'STRONG_YES' | 'YES' | 'NO' | 'STRONG_NO';
+export type OfferStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'EXTENDED' | 'ACCEPTED' | 'DECLINED';
+export type RejectionReason =
+  | 'MISSING_REQUIRED_SKILLS' | 'INSUFFICIENT_EXPERIENCE' | 'EDUCATION_REQUIREMENTS'
+  | 'FAILED_INTERVIEW' | 'BETTER_CANDIDATE_SELECTED' | 'SALARY_EXPECTATIONS'
+  | 'POSITION_CLOSED' | 'UNRESPONSIVE' | 'OTHER';
+export type PipelineAction =
+  | 'ADVANCE' | 'REJECT' | 'BACKTRACK' | 'REOPEN' | 'MARK_HIRED'
+  | 'SCHEDULE_INTERVIEW' | 'CREATE_OFFER' | 'ADD_NOTE';
+
+export interface Panelist {
+  userId: string;
+  name: string;
+  feedbackSubmitted: boolean;
+}
+
+export interface InterviewFeedback {
+  id: string;
+  interviewerId: string;
+  interviewerName: string;
+  rating?: number;
+  recommendation?: FeedbackRecommendation;
+  strengths?: string;
+  concerns?: string;
+  submittedAt: string;
+  hidden: boolean;
+}
+
+export interface Interview {
+  id: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  type: InterviewType;
+  location?: string;
+  notes?: string;
+  status: InterviewStatus;
+  createdByName?: string;
+  panel: Panelist[];
+  feedback: InterviewFeedback[];
+  viewerOnPanel: boolean;
+  viewerFeedbackSubmitted: boolean;
+}
+
+export interface Offer {
+  id: string;
+  salary: number;
+  currency: string;
+  startDate?: string;
+  expiresAt?: string;
+  notes?: string;
+  status: OfferStatus;
+  createdByName?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  extendedAt?: string;
+  respondedAt?: string;
+}
+
+export interface PipelineEvent {
+  id: number;
+  type: string;
+  actorName?: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface Pipeline {
+  interviews: Interview[];
+  offer?: Offer;
+  timeline: PipelineEvent[];
+  allowedActions: PipelineAction[];
 }
 
 export interface Notification {
