@@ -20,8 +20,10 @@ import com.resumeai.repository.UserRepository;
 import com.resumeai.security.SecurityUtils;
 import com.resumeai.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class JobService {
@@ -61,7 +64,11 @@ public class JobService {
     @Transactional(readOnly = true)
     public PublicJobResponse getPublic(UUID jobId) {
         Job job = find(jobId);
-        if (job.getStatus() != JobStatus.PUBLISHED || job.getCompany().getStatus() != CompanyStatus.ACTIVE) {
+        boolean expired = job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now());
+        if (job.getStatus() != JobStatus.PUBLISHED
+                || job.getCompany().getStatus() != CompanyStatus.ACTIVE
+                || expired) {
+            // expired postings disappear from candidates entirely (consistent with the listing)
             throw ApiException.notFound("Job not found");
         }
         return PublicJobResponse.from(job);
@@ -292,8 +299,41 @@ public class JobService {
         if (job.getQualifications().isEmpty()) {
             throw ApiException.badRequest("Add at least one qualification first");
         }
-        if (job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now())) {
+        // every live posting must have a defined end date
+        if (job.getDeadline() == null) {
+            throw ApiException.badRequest("Set an application deadline before the job can go live");
+        }
+        if (job.getDeadline().isBefore(LocalDate.now())) {
             throw ApiException.badRequest("The deadline is in the past - update it first");
+        }
+    }
+
+    /**
+     * Auto-expiry: published postings past their deadline are closed hourly, so
+     * they stop reading as active internally (the public board already hides
+     * them). Closed jobs remain re-publishable and archivable for records.
+     */
+    @Scheduled(fixedDelay = 3_600_000, initialDelay = 30_000)
+    @Transactional
+    public void closeExpiredJobs() {
+        List<Job> expired = jobRepository.findByStatusAndDeadlineBefore(
+                JobStatus.PUBLISHED, LocalDate.now());
+        for (Job job : expired) {
+            job.setStatus(JobStatus.CLOSED);
+            auditService.log(null, job.getCompany().getId(), "JOB_EXPIRED", "JOB",
+                    job.getId().toString(),
+                    Map.of("title", job.getTitle(), "deadline", job.getDeadline().toString()));
+            if (job.getCreatedBy() != null) {
+                notificationService.notify(job.getCreatedBy(), NotificationType.PIPELINE,
+                        "Job posting expired: " + job.getTitle(),
+                        "The posting \"" + job.getTitle() + "\" reached its deadline ("
+                                + job.getDeadline() + ") and was closed automatically. "
+                                + "Extend the deadline and re-publish it to keep accepting applications.",
+                        "/company/jobs", false);
+            }
+        }
+        if (!expired.isEmpty()) {
+            log.info("Auto-closed {} expired job postings", expired.size());
         }
     }
 

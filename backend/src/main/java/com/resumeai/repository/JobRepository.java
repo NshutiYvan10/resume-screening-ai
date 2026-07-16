@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface JobRepository extends JpaRepository<Job, UUID> {
@@ -45,6 +46,8 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
                                Pageable pageable);
 
     long countByCompanyId(UUID companyId);
+
+    List<Job> findByStatusAndDeadlineBefore(JobStatus status, java.time.LocalDate date);
 
     long countByCompanyIdAndStatus(UUID companyId, JobStatus status);
 

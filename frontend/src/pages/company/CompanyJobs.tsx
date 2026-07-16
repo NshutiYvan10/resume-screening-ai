@@ -148,6 +148,16 @@ export default function CompanyJobs() {
                   {job.location && <span>{job.location}</span>}
                   <span>Created {formatDate(job.createdAt)}</span>
                   {job.createdByName && <span>by {job.createdByName}</span>}
+                  {job.deadline && (
+                    new Date(job.deadline) < new Date(new Date().toDateString()) ? (
+                      <span className="font-semibold text-red-500">
+                        Deadline passed {formatDate(job.deadline)}
+                        {job.status === 'PUBLISHED' && ' · closing automatically'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">Closes {formatDate(job.deadline)}</span>
+                    )
+                  )}
                 </div>
                 {job.status === 'DRAFT' && job.rejectionReason && (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-700">

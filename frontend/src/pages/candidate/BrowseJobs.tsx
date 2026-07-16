@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import PageHeader from '../../components/PageHeader';
 import { useMyApplicationsMap } from '../../lib/useMyApplications';
 import { Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
-import { APPLICATION_STATUS_STYLES, formatSalary, humanize, timeAgo } from '../../lib/format';
+import { APPLICATION_STATUS_STYLES, formatDate, formatSalary, humanize, timeAgo } from '../../lib/format';
 import type { EmploymentType, Page, PublicJob, WorkMode } from '../../types';
 
 export default function BrowseJobs() {
@@ -146,6 +146,9 @@ export default function BrowseJobs() {
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {job.location}</span>
                   )}
                   {salary && <span className="font-medium text-slate-600">{salary}</span>}
+                  {job.deadline && (
+                    <span className="font-medium text-amber-600">Apply by {formatDate(job.deadline)}</span>
+                  )}
                   <span className="flex items-center gap-1 ml-auto"><Clock className="h-3.5 w-3.5" /> {timeAgo(job.publishedAt)}</span>
                 </div>
               </Link>

@@ -219,9 +219,11 @@ export default function JobEditor() {
                 onChange={(e) => set('salaryCurrency', e.target.value)} maxLength={10} />
             </Field>
           </div>
-          <Field label="Application deadline">
+          <Field label="Application deadline" required
+            hint="Every posting needs an end date — it closes automatically when this passes">
             <input type="date" className="input" value={form.deadline}
-              onChange={(e) => set('deadline', e.target.value)} />
+              min={new Date().toISOString().split('T')[0]}
+              onChange={(e) => set('deadline', e.target.value)} required />
           </Field>
         </div>
 
