@@ -17,6 +17,17 @@ export default function AdminCompanies() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState({ email: '', companyName: '' });
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>, id: string) => {
+    if (menuId === id) {
+      setMenuId(null);
+      return;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setMenuId(id);
+  };
 
   const companies = useQuery({
     queryKey: ['companies', search, page],
@@ -152,17 +163,20 @@ export default function AdminCompanies() {
                         />
                       </td>
                       <td className="px-5 py-3.5 text-slate-500">{formatDate(c.createdAt)}</td>
-                      <td className="px-5 py-3.5 text-right relative">
+                      <td className="px-5 py-3.5 text-right">
                         <button
-                          onClick={() => setMenuId(menuId === c.id ? null : c.id)}
+                          onClick={(e) => openMenu(e, c.id)}
                           className="rounded p-1.5 text-slate-400 hover:bg-slate-100"
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
                         {menuId === c.id && (
                           <>
-                            <div className="fixed inset-0 z-20" onClick={() => setMenuId(null)} />
-                            <div className="absolute right-5 z-30 mt-1 w-44 card py-1 text-left">
+                            <div className="fixed inset-0 z-40" onClick={() => setMenuId(null)} />
+                            <div
+                              className="fixed z-50 w-48 card py-1 text-left"
+                              style={{ top: menuPos.top, right: menuPos.right }}
+                            >
                               {c.status === 'ACTIVE' ? (
                                 <button
                                   onClick={() => setStatus.mutate({ id: c.id, action: 'suspend' })}
