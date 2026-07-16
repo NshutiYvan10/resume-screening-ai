@@ -418,6 +418,12 @@ public class ApplicationService {
         sr.setExtractedExperienceYears(null);
         sr.setBiasFlag(false);
         sr.setBiasFlagReason(null);
+        sr.setMatchedSkills(null);
+        sr.setMissingRequired(null);
+        sr.setMissingOptional(null);
+        sr.setReasoning(null);
+        sr.setParseQuality(null);
+        sr.setParseWarnings(null);
         sr.setErrorMessage(null);
         sr.setScreenedAt(null);
     }

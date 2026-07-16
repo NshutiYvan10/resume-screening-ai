@@ -33,6 +33,12 @@ public final class ApplicationDtos {
             BigDecimal extractedExperienceYears,
             boolean biasFlag,
             String biasFlagReason,
+            List<String> matchedSkills,
+            List<String> missingRequired,
+            List<String> missingOptional,
+            String reasoning,
+            String parseQuality,
+            List<String> parseWarnings,
             String errorMessage,
             Instant screenedAt) {
 
@@ -43,7 +49,9 @@ public final class ApplicationDtos {
             return new ScreeningResponse(sr.getStatus(), sr.getMatchScore(), sr.getSkillsScore(),
                     sr.getExperienceScore(), sr.getEducationScore(), sr.getExtractedSkills(),
                     sr.getExtractedEducation(), sr.getExtractedExperienceYears(), sr.isBiasFlag(),
-                    sr.getBiasFlagReason(), sr.getErrorMessage(), sr.getScreenedAt());
+                    sr.getBiasFlagReason(), sr.getMatchedSkills(), sr.getMissingRequired(),
+                    sr.getMissingOptional(), sr.getReasoning(), sr.getParseQuality(),
+                    sr.getParseWarnings(), sr.getErrorMessage(), sr.getScreenedAt());
         }
     }
 

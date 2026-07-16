@@ -144,6 +144,12 @@ public class ScreeningService {
                 sr.setExtractedExperienceYears(result.extractedExperienceYears());
                 sr.setBiasFlag(result.biasFlag());
                 sr.setBiasFlagReason(result.biasFlagReason());
+                sr.setMatchedSkills(result.matchedSkills());
+                sr.setMissingRequired(result.missingRequired());
+                sr.setMissingOptional(result.missingOptional());
+                sr.setReasoning(result.reasoning());
+                sr.setParseQuality(result.parseQuality());
+                sr.setParseWarnings(result.parseWarnings());
                 sr.setScreenedAt(Instant.now());
 
                 if (application.getJob().getCreatedBy() != null) {
@@ -241,6 +247,12 @@ public class ScreeningService {
             @JsonProperty("extracted_name") String extractedName,
             @JsonProperty("extracted_email") String extractedEmail,
             @JsonProperty("bias_flag") boolean biasFlag,
-            @JsonProperty("bias_flag_reason") String biasFlagReason) {
+            @JsonProperty("bias_flag_reason") String biasFlagReason,
+            @JsonProperty("matched_skills") List<String> matchedSkills,
+            @JsonProperty("missing_required") List<String> missingRequired,
+            @JsonProperty("missing_optional") List<String> missingOptional,
+            @JsonProperty("reasoning") String reasoning,
+            @JsonProperty("parse_quality") String parseQuality,
+            @JsonProperty("parse_warnings") List<String> parseWarnings) {
     }
 }

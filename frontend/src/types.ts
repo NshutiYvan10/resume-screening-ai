@@ -195,6 +195,12 @@ export interface Screening {
   extractedExperienceYears?: number;
   biasFlag: boolean;
   biasFlagReason?: string;
+  matchedSkills?: string[];
+  missingRequired?: string[];
+  missingOptional?: string[];
+  reasoning?: string;
+  parseQuality?: 'good' | 'partial' | 'poor';
+  parseWarnings?: string[];
   errorMessage?: string;
   screenedAt?: string;
 }

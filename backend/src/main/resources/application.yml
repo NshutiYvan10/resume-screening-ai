@@ -62,7 +62,8 @@ app:
     refresh-token-days: ${JWT_REFRESH_DAYS:7}
 
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
+    # includes IPv6 loopback: modern Node/Vite may bind [::1] for "localhost"
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:4173,http://[::1]:5173,http://127.0.0.1:5173}
 
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
 

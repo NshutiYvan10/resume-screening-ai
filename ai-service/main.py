@@ -19,6 +19,7 @@ from parser import extract_text
 from extractor import extract_entities
 from scorer import compute_score
 from bias_detector import detect_bias
+from explainer import assess_parse_quality, build_reasoning
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,6 +57,10 @@ class ScreenResponse(BaseModel):
     matched_skills: List[str] = []
     missing_required: List[str] = []
     missing_optional: List[str] = []
+    # explainability
+    reasoning: str = ""
+    parse_quality: str = "good"          # good | partial | poor
+    parse_warnings: List[str] = []
 
 
 def _check_api_key(x_api_key: Optional[str]):
@@ -119,6 +124,10 @@ async def screen_resume(
             if skill not in displayed_skills:
                 displayed_skills.append(skill)
 
+        parse_quality, parse_warnings = assess_parse_quality(resume_text, entities)
+        reasoning = build_reasoning(scores, entities, [q.dict() for q in quals],
+                                    min_experience_years, education_level)
+
         logger.info(
             "Screened '%s' for job '%s': overall=%.2f skills=%d bias=%s",
             file.filename, job_title, scores["overall"],
@@ -142,6 +151,9 @@ async def screen_resume(
             matched_skills=scores.get("matched_skills", []),
             missing_required=scores.get("missing_required", []),
             missing_optional=scores.get("missing_optional", []),
+            reasoning=reasoning,
+            parse_quality=parse_quality,
+            parse_warnings=parse_warnings,
         )
     except HTTPException:
         raise

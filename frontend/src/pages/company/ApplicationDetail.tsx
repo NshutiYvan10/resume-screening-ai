@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Download, AlertTriangle, Mail, Phone, RefreshCw, GraduationCap, Briefcase,
+  CheckCircle2, XCircle, MinusCircle,
 } from 'lucide-react';
 import { api, apiErrorMessage, tokenStore } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
@@ -128,11 +129,74 @@ export default function ApplicationDetail() {
             <h2 className="mb-4 font-semibold text-slate-800">AI screening analysis</h2>
             {s?.status === 'COMPLETED' ? (
               <>
+                {/* parse-quality warning: a poorly-extracted resume means the
+                    score below cannot be trusted without a human read */}
+                {(s.parseQuality === 'poor' || s.parseQuality === 'partial') && (
+                  <div className={`mb-4 rounded-lg border p-3 ${
+                    s.parseQuality === 'poor'
+                      ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+                  }`}>
+                    <p className={`flex items-center gap-2 text-sm font-semibold ${
+                      s.parseQuality === 'poor' ? 'text-red-700' : 'text-amber-800'
+                    }`}>
+                      <AlertTriangle className="h-4 w-4" />
+                      {s.parseQuality === 'poor'
+                        ? 'Low confidence — the resume could not be read well. Review the file manually.'
+                        : 'Partial extraction — some details could not be read from the resume.'}
+                    </p>
+                    {!!s.parseWarnings?.length && (
+                      <ul className={`mt-1.5 list-disc pl-6 text-xs ${
+                        s.parseQuality === 'poor' ? 'text-red-600' : 'text-amber-700'
+                      }`}>
+                        {s.parseWarnings.map((w) => <li key={w}>{w}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid gap-4 sm:grid-cols-3">
                   <ScoreBar label="Skills match" value={s.skillsScore} />
                   <ScoreBar label="Experience" value={s.experienceScore} />
                   <ScoreBar label="Education" value={s.educationScore} />
                 </div>
+
+                {/* why this score */}
+                {s.reasoning && (
+                  <div className="mt-5 rounded-lg border border-brand-100 bg-brand-50/60 p-4">
+                    <p className="text-sm font-semibold text-brand-800">Why this score</p>
+                    <p className="mt-1 text-sm leading-relaxed text-brand-900/80">{s.reasoning}</p>
+                  </div>
+                )}
+
+                {/* per-qualification evidence table */}
+                {(s.matchedSkills || s.missingRequired || s.missingOptional) && (
+                  <div className="mt-5">
+                    <p className="mb-2 text-sm font-medium text-slate-700">Qualification match</p>
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      {s.matchedSkills?.map((skill) => (
+                        <div key={`m-${skill}`} className="flex items-center gap-2 border-b border-slate-100 bg-green-50/40 px-3 py-2 last:border-0">
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                          <span className="text-sm text-slate-700">{skill}</span>
+                          <span className="ml-auto text-xs font-medium text-green-700">Found in resume</span>
+                        </div>
+                      ))}
+                      {s.missingRequired?.map((skill) => (
+                        <div key={`r-${skill}`} className="flex items-center gap-2 border-b border-slate-100 bg-red-50/40 px-3 py-2 last:border-0">
+                          <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                          <span className="text-sm text-slate-700">{skill}</span>
+                          <span className="ml-auto text-xs font-semibold text-red-600">Missing · required</span>
+                        </div>
+                      ))}
+                      {s.missingOptional?.map((skill) => (
+                        <div key={`o-${skill}`} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0">
+                          <MinusCircle className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="text-sm text-slate-500">{skill}</span>
+                          <span className="ml-auto text-xs text-slate-400">Missing · optional</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg bg-slate-50 p-4">

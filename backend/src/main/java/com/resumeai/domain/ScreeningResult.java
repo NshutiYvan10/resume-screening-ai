@@ -56,6 +56,28 @@ public class ScreeningResult {
     @Column(name = "extracted_experience_years")
     private BigDecimal extractedExperienceYears;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "matched_skills")
+    private List<String> matchedSkills;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "missing_required")
+    private List<String> missingRequired;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "missing_optional")
+    private List<String> missingOptional;
+
+    @Column(columnDefinition = "text")
+    private String reasoning;
+
+    @Column(name = "parse_quality", length = 10)
+    private String parseQuality;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "parse_warnings")
+    private List<String> parseWarnings;
+
     @Column(name = "bias_flag", nullable = false)
     @Builder.Default
     private boolean biasFlag = false;

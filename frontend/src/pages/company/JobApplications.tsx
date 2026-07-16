@@ -120,7 +120,21 @@ export default function JobApplications() {
                   <span>Applied {timeAgo(app.appliedAt)}</span>
                   <ScreeningStatusBadge status={app.screening?.status} />
                 </div>
-                {!!app.screening?.extractedSkills?.length && (
+                {(!!app.screening?.matchedSkills?.length || !!app.screening?.missingRequired?.length) ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    {app.screening.matchedSkills?.slice(0, 5).map((s) => (
+                      <span key={s} className="badge bg-green-50 text-green-700">✓ {s}</span>
+                    ))}
+                    {app.screening.missingRequired?.map((s) => (
+                      <span key={s} className="badge bg-red-50 text-red-600">✗ {s}</span>
+                    ))}
+                    {app.screening.parseQuality && app.screening.parseQuality !== 'good' && (
+                      <span className="badge bg-amber-100 text-amber-700">
+                        {app.screening.parseQuality === 'poor' ? 'Low confidence' : 'Partial read'}
+                      </span>
+                    )}
+                  </div>
+                ) : !!app.screening?.extractedSkills?.length && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {app.screening.extractedSkills.slice(0, 6).map((s) => (
                       <span key={s} className="badge bg-slate-100 text-slate-600">{s}</span>
