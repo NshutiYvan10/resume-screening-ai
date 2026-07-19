@@ -36,20 +36,30 @@ import MyApplications from './pages/candidate/MyApplications';
 import CompanyProfilePublic from './pages/candidate/CompanyProfilePublic';
 import CandidateReports from './pages/candidate/CandidateReports';
 
+import PublicLayout from './components/public/PublicLayout';
+import Landing from './pages/public/Landing';
+import PublicJobs from './pages/public/PublicJobs';
+import PublicJobDetail from './pages/public/PublicJobDetail';
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
 }
 
-function RootRedirect() {
+// Landing page for visitors; signed-in users go straight to their dashboard.
+function Home() {
   const { user, loading } = useAuth();
   if (loading) return <PageLoader />;
-  return <Navigate to={user ? homeForRole(user.role) : '/login'} replace />;
+  if (user) return <Navigate to={homeForRole(user.role)} replace />;
+  return <PublicLayout><Landing /></PublicLayout>;
 }
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<RootRedirect />} />
+      {/* public landing + job repository (no login required) */}
+      <Route path="/" element={<Home />} />
+      <Route path="/jobs" element={<PublicLayout><PublicJobs /></PublicLayout>} />
+      <Route path="/jobs/:jobId" element={<PublicLayout><PublicJobDetail /></PublicLayout>} />
 
       {/* public auth routes */}
       <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
@@ -90,7 +100,7 @@ export default function App() {
       {/* shared */}
       <Route path="/settings" element={<RequireAuth><Shell><Settings /></Shell></RequireAuth>} />
 
-      <Route path="*" element={<RootRedirect />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

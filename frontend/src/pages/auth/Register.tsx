@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
@@ -8,6 +8,12 @@ import AuthShell from './AuthShell';
 
 export default function Register() {
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  // preserve the post-apply deep link through email verification -> sign in
+  const loginTo = redirect && redirect.startsWith('/')
+    ? `/login?redirect=${encodeURIComponent(redirect)}`
+    : '/login';
   const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '' });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -43,7 +49,7 @@ export default function Register() {
             account, then sign in.
           </p>
         </div>
-        <Link to="/login" className="btn-primary mt-6 w-full">
+        <Link to={loginTo} className="btn-primary mt-6 w-full">
           Back to sign in
         </Link>
       </AuthShell>
@@ -79,7 +85,7 @@ export default function Register() {
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-700">
+        <Link to={loginTo} className="font-medium text-brand-600 hover:text-brand-700">
           Sign in
         </Link>
       </p>
