@@ -201,6 +201,12 @@ export interface Screening {
   reasoning?: string;
   parseQuality?: 'good' | 'partial' | 'poor';
   parseWarnings?: string[];
+  identityVerified?: boolean;
+  identityFlags?: string[];
+  identitySummary?: string;
+  extractedName?: string;
+  extractedEmail?: string;
+  extractedPhone?: string;
   errorMessage?: string;
   screenedAt?: string;
 }

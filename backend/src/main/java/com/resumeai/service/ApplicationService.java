@@ -719,6 +719,13 @@ public class ApplicationService {
         sr.setReasoning(null);
         sr.setParseQuality(null);
         sr.setParseWarnings(null);
+        sr.setIdentityVerified(true);
+        sr.setIdentityFlags(null);
+        sr.setIdentitySummary(null);
+        sr.setExtractedName(null);
+        sr.setExtractedEmail(null);
+        sr.setExtractedPhone(null);
+        sr.setResumeFingerprint(null);
         sr.setErrorMessage(null);
         sr.setScreenedAt(null);
     }

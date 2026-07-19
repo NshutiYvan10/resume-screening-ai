@@ -53,7 +53,7 @@ public class FileStorageService {
             try (InputStream in = file.getInputStream()) {
                 Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
             }
-            return root.relativize(target).toString();
+            return toRelativeKey(target);
         } catch (IOException e) {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store resume file");
@@ -85,7 +85,7 @@ public class FileStorageService {
             try (InputStream in = file.getInputStream()) {
                 Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
             }
-            return root.relativize(target).toString();
+            return toRelativeKey(target);
         } catch (IOException e) {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store image file");
@@ -104,11 +104,24 @@ public class FileStorageService {
     }
 
     public Path resolve(String relativePath) {
+        // stored keys use '/' separators (see toRelativeKey); Path.resolve accepts
+        // '/' on every OS including Windows, and legacy '\'-separated keys still
+        // resolve correctly on the OS that produced them.
         Path path = root.resolve(relativePath).normalize();
         if (!path.startsWith(root)) {
             throw ApiException.badRequest("Invalid file path");
         }
         return path;
+    }
+
+    /**
+     * Relative storage key with forward-slash separators, regardless of the host
+     * OS. Windows {@code Path.toString()} uses backslashes, which would otherwise
+     * corrupt URL building (the media URL splits on '/') and make stored keys
+     * non-portable between machines.
+     */
+    private String toRelativeKey(Path target) {
+        return root.relativize(target).toString().replace('\\', '/');
     }
 
     private String extensionOf(String filename) {

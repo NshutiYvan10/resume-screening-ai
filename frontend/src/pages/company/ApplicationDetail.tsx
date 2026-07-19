@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Download, AlertTriangle, Mail, Phone, RefreshCw, GraduationCap, Briefcase,
   CheckCircle2, XCircle, MinusCircle, ArrowRight, RotateCcw, Undo2, PartyPopper,
+  Eye, ShieldAlert, ShieldCheck, FileText,
 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
@@ -14,7 +15,7 @@ import InterviewsCard from '../../components/pipeline/InterviewsCard';
 import OfferCard from '../../components/pipeline/OfferCard';
 import TimelineCard from '../../components/pipeline/TimelineCard';
 import { APPLICATION_STATUS_STYLES, formatDateTime, humanize, timeAgo } from '../../lib/format';
-import type { Application, Pipeline, RejectionReason } from '../../types';
+import type { Application, Pipeline, RejectionReason, Screening } from '../../types';
 
 const REJECTION_REASONS: RejectionReason[] = [
   'MISSING_REQUIRED_SKILLS', 'INSUFFICIENT_EXPERIENCE', 'EDUCATION_REQUIREMENTS',
@@ -29,6 +30,68 @@ const ADVANCE_LABEL: Record<string, string> = {
   SHORTLISTED: 'Move to Interview',
 };
 
+// friendly labels for the AI's advisory identity flags
+const IDENTITY_FLAG_LABELS: Record<string, string> = {
+  NAME_MISMATCH: 'Name on the résumé does not match the applicant account',
+  DUPLICATE_RESUME: 'This résumé was also submitted by a different applicant',
+  EMAIL_MISMATCH: 'Résumé email differs from the applicant account',
+  PHONE_MISMATCH: 'Résumé phone differs from the applicant account',
+  NAME_NOT_FOUND: 'No candidate name could be read from the résumé',
+};
+const STRONG_IDENTITY_FLAGS = ['NAME_MISMATCH', 'DUPLICATE_RESUME'];
+
+/** Advisory identity/authenticity result from the AI screening (never affects the score). */
+function IdentityVerificationCard({ s }: { s: Screening }) {
+  const flags = s.identityFlags || [];
+  const verified = s.identityVerified !== false;
+  // hide entirely for legacy screenings that predate identity checks
+  if (!flags.length && !s.extractedName && verified) return null;
+  const strong = flags.some((f) => STRONG_IDENTITY_FLAGS.includes(f));
+  const alert = !verified || strong;
+  const tone = alert
+    ? { box: 'border-red-200 bg-red-50', title: 'text-red-800', body: 'text-red-700' }
+    : flags.length
+      ? { box: 'border-amber-200 bg-amber-50', title: 'text-amber-800', body: 'text-amber-700' }
+      : { box: 'border-green-200 bg-green-50', title: 'text-green-800', body: 'text-green-700' };
+  return (
+    <div className={`rounded-xl border p-4 ${tone.box}`}>
+      <div className="flex items-start gap-2">
+        {alert || flags.length
+          ? <ShieldAlert className={`h-5 w-5 shrink-0 ${alert ? 'text-red-500' : 'text-amber-500'}`} />
+          : <ShieldCheck className="h-5 w-5 shrink-0 text-green-600" />}
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-semibold ${tone.title}`}>
+            {alert ? 'Identity check — needs review'
+              : flags.length ? 'Identity check — minor discrepancies'
+              : 'Identity check passed'}
+          </p>
+          {s.identitySummary && <p className={`mt-1 text-sm ${tone.body}`}>{s.identitySummary}</p>}
+          {!verified && (
+            <p className={`mt-1 text-sm ${tone.body}`}>
+              Please verify this candidate’s identity against the original résumé before proceeding.
+            </p>
+          )}
+          {!!flags.length && (
+            <ul className="mt-2 space-y-1">
+              {flags.map((f) => (
+                <li key={f} className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className={`h-1.5 w-1.5 rounded-full ${STRONG_IDENTITY_FLAGS.includes(f) ? 'bg-red-500' : 'bg-amber-500'}`} />
+                  {IDENTITY_FLAG_LABELS[f] || humanize(f)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {(s.extractedName || s.extractedEmail || s.extractedPhone) && (
+            <p className="mt-2 text-xs text-slate-500">
+              Read from résumé: {[s.extractedName, s.extractedEmail, s.extractedPhone].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ApplicationDetail() {
   const { applicationId } = useParams();
   const toast = useToast();
@@ -37,6 +100,8 @@ export default function ApplicationDetail() {
   const [reject, setReject] = useState({
     reason: 'BETTER_CANDIDATE_SELECTED' as RejectionReason, internalNote: '', candidateMessage: '',
   });
+  const [resumeView, setResumeView] = useState<{ url: string; ext: string } | null>(null);
+  const [loadingView, setLoadingView] = useState(false);
 
   const { data: app, isLoading } = useQuery({
     queryKey: ['application', applicationId],
@@ -105,6 +170,36 @@ export default function ApplicationDetail() {
     }
   };
 
+  // open the original submitted file in an in-app viewer (authenticated blob fetch,
+  // so the recruiter reads the exact document the candidate uploaded)
+  const openResume = async () => {
+    setLoadingView(true);
+    try {
+      const res = await api.get(`/applications/${applicationId}/resume`, { responseType: 'blob' });
+      const ext = (app?.resumeFileName?.split('.').pop() || '').toLowerCase();
+      // give the blob a viewer-friendly type so the iframe renders inline
+      const mime = ext === 'pdf' ? 'application/pdf' : ext === 'txt' ? 'text/plain' : (res.data as Blob).type;
+      const url = URL.createObjectURL(new Blob([res.data as Blob], { type: mime || 'application/octet-stream' }));
+      setResumeView({ url, ext });
+    } catch (err) {
+      toast(apiErrorMessage(err), 'error');
+    } finally {
+      setLoadingView(false);
+    }
+  };
+
+  const closeResume = () => {
+    setResumeView((v) => {
+      if (v) URL.revokeObjectURL(v.url);
+      return null;
+    });
+  };
+
+  // release the résumé blob URL if the user navigates away with the viewer still open
+  useEffect(() => () => {
+    if (resumeView) URL.revokeObjectURL(resumeView.url);
+  }, [resumeView]);
+
   if (isLoading || !app) return <PageLoader />;
   const s = app.screening;
 
@@ -133,8 +228,11 @@ export default function ApplicationDetail() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={openResume} className="btn-primary" disabled={loadingView}>
+              {loadingView ? <Spinner className="h-4 w-4" /> : <Eye className="h-4 w-4" />} View résumé
+            </button>
             <button onClick={downloadResume} className="btn-secondary">
-              <Download className="h-4 w-4" /> Resume
+              <Download className="h-4 w-4" /> Download
             </button>
             <button
               onClick={() => rescreen.mutate()}
@@ -306,6 +404,8 @@ export default function ApplicationDetail() {
             </div>
           )}
 
+          {s?.status === 'COMPLETED' && <IdentityVerificationCard s={s} />}
+
           {/* interviews: shown once the candidate reaches the interview stage or has history */}
           {(app.status === 'INTERVIEW' || !!pipeline?.interviews.length) && (
             <InterviewsCard
@@ -446,6 +546,40 @@ export default function ApplicationDetail() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* original résumé viewer: reads the exact file the candidate submitted */}
+      <Modal open={!!resumeView} onClose={closeResume} title="Original résumé" maxWidth="max-w-4xl">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="flex items-center gap-2 truncate text-sm text-slate-500">
+              <FileText className="h-4 w-4 shrink-0" /> {app.resumeFileName}
+            </p>
+            <button onClick={downloadResume} className="btn-secondary shrink-0">
+              <Download className="h-4 w-4" /> Download
+            </button>
+          </div>
+          {resumeView && (resumeView.ext === 'pdf' || resumeView.ext === 'txt') ? (
+            <iframe
+              src={resumeView.url}
+              title="Résumé preview"
+              className="h-[70vh] w-full rounded-lg border border-slate-200 bg-white"
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 py-12 text-center">
+              <FileText className="mx-auto h-10 w-10 text-slate-300" />
+              <p className="mt-3 text-sm font-medium text-slate-700">
+                In-browser preview isn’t available for {resumeView?.ext ? `.${resumeView.ext}` : 'this'} files
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Download the file to open it in Word or your document viewer.
+              </p>
+              <button onClick={downloadResume} className="btn-primary mx-auto mt-4">
+                <Download className="h-4 w-4" /> Download résumé
+              </button>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

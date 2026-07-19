@@ -27,4 +27,16 @@ public class AnalyticsController {
     public Map<String, Object> company() {
         return analyticsService.company();
     }
+
+    @GetMapping("/recruiter")
+    @PreAuthorize("hasRole('RECRUITER')")
+    public Map<String, Object> recruiter() {
+        return analyticsService.recruiter();
+    }
+
+    @GetMapping("/candidate")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public Map<String, Object> candidate() {
+        return analyticsService.candidate();
+    }
 }

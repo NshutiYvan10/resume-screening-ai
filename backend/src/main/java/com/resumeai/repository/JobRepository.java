@@ -61,4 +61,47 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     long countOpenPublicJobs(@Param("companyId") UUID companyId);
 
     long countByStatus(JobStatus status);
+
+    // ---------------------------------------------------------- reporting
+
+    long countByCreatedById(UUID userId);
+
+    long countByCreatedByIdAndStatus(UUID userId, JobStatus status);
+
+    /** Platform-wide job counts grouped by status. */
+    @Query("SELECT j.status AS status, count(j) AS cnt FROM Job j GROUP BY j.status")
+    List<Object[]> countGroupByStatus();
+
+    /** Companies that currently have at least one published job. */
+    @Query("""
+            SELECT count(DISTINCT j.company.id) FROM Job j
+            WHERE j.status = com.resumeai.domain.enums.JobStatus.PUBLISHED
+            """)
+    long countActiveCompanies();
+
+    /** Per-job performance for a recruiter's own jobs: [title, status, applications, avgScore]. */
+    @Query(value = """
+            SELECT j.title, j.status, count(a.id) AS apps, avg(sr.match_score) AS avg_score
+            FROM jobs j
+            LEFT JOIN applications a ON a.job_id = j.id
+            LEFT JOIN screening_results sr ON sr.application_id = a.id AND sr.status = 'COMPLETED'
+            WHERE j.created_by = :userId
+            GROUP BY j.id, j.title, j.status
+            ORDER BY apps DESC, j.created_at DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Object[]> jobPerformanceForRecruiter(@Param("userId") UUID userId);
+
+    /** Per-job performance across a whole company: [title, status, applications, avgScore]. */
+    @Query(value = """
+            SELECT j.title, j.status, count(a.id) AS apps, avg(sr.match_score) AS avg_score
+            FROM jobs j
+            LEFT JOIN applications a ON a.job_id = j.id
+            LEFT JOIN screening_results sr ON sr.application_id = a.id AND sr.status = 'COMPLETED'
+            WHERE j.company_id = :companyId
+            GROUP BY j.id, j.title, j.status
+            ORDER BY apps DESC, j.created_at DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Object[]> jobPerformanceForCompany(@Param("companyId") UUID companyId);
 }

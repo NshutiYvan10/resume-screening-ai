@@ -38,7 +38,10 @@ public final class CompanyDtos {
         if (storedPath == null || storedPath.isBlank()) {
             return null;
         }
-        String fileName = storedPath.substring(storedPath.lastIndexOf('/') + 1);
+        // stored keys use '/', but tolerate legacy Windows keys stored with '\'
+        // so images uploaded before the separator fix still resolve.
+        int slash = Math.max(storedPath.lastIndexOf('/'), storedPath.lastIndexOf('\\'));
+        String fileName = storedPath.substring(slash + 1);
         return "/api/v1/media/company/" + companyId + "/" + fileName;
     }
 

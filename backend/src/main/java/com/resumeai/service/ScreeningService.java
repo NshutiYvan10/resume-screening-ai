@@ -106,7 +106,11 @@ public class ScreeningService {
                     application.getJob().getTitle(),
                     application.getJob().getMinExperienceYears(),
                     application.getJob().getEducationLevel() != null
-                            ? application.getJob().getEducationLevel().name() : "");
+                            ? application.getJob().getEducationLevel().name() : "",
+                    application.getCandidate().getId(),
+                    application.getCandidate().getFullName(),
+                    application.getCandidate().getEmail(),
+                    application.getCandidate().getPhone());
         });
         if (data == null) {
             log.warn("Application {} vanished before screening", applicationId);
@@ -152,6 +156,13 @@ public class ScreeningService {
                 sr.setParseWarnings(result.parseWarnings());
                 sr.setScreenedAt(Instant.now());
 
+                // identity verification (advisory) + duplicate-resume detection
+                sr.setExtractedName(result.extractedName());
+                sr.setExtractedEmail(result.extractedEmail());
+                sr.setExtractedPhone(result.extractedPhone());
+                sr.setResumeFingerprint(result.resumeFingerprint());
+                applyIdentity(sr, result, data.candidateId());
+
                 if (application.getJob().getCreatedBy() != null) {
                     notificationService.notify(application.getJob().getCreatedBy(),
                             NotificationType.SCREENING_COMPLETED,
@@ -192,6 +203,10 @@ public class ScreeningService {
         body.add("min_experience_years",
                 data.minExperienceYears() != null ? data.minExperienceYears().toPlainString() : "0");
         body.add("education_level", data.educationLevel() != null ? data.educationLevel() : "");
+        // applicant account identity → AI compares it against the resume (advisory)
+        body.add("applicant_name", data.candidateName() != null ? data.candidateName() : "");
+        body.add("applicant_email", data.candidateEmail() != null ? data.candidateEmail() : "");
+        body.add("applicant_phone", data.candidatePhone() != null ? data.candidatePhone() : "");
 
         return aiClient
                 .post()
@@ -201,6 +216,33 @@ public class ScreeningService {
                 .body(body)
                 .retrieve()
                 .body(AiScreenResponse.class);
+    }
+
+    /**
+     * Fold the AI's advisory identity result plus a duplicate-resume check into
+     * the screening row. Never touches the match score.
+     */
+    private void applyIdentity(ScreeningResult sr, AiScreenResponse result, UUID candidateId) {
+        List<String> flags = new java.util.ArrayList<>(
+                result.identityFlags() != null ? result.identityFlags() : List.of());
+        boolean verified = result.identityVerified() == null || result.identityVerified();
+        StringBuilder summary = new StringBuilder(
+                result.identitySummary() != null ? result.identitySummary() : "");
+
+        String fingerprint = result.resumeFingerprint();
+        if (fingerprint != null && !fingerprint.isBlank()
+                && screeningResultRepository.countOtherCandidatesWithFingerprint(fingerprint, candidateId) > 0) {
+            flags.add("DUPLICATE_RESUME");
+            verified = false;
+            if (summary.length() > 0) {
+                summary.append(' ');
+            }
+            summary.append("This exact resume has also been submitted by a different applicant.");
+        }
+
+        sr.setIdentityVerified(verified);
+        sr.setIdentityFlags(flags.isEmpty() ? null : flags);
+        sr.setIdentitySummary(summary.length() > 0 ? summary.toString() : null);
     }
 
     private Map<String, Object> toQualificationPayload(JobQualification q) {
@@ -235,7 +277,9 @@ public class ScreeningService {
 
     record ScreenJobData(String storedPath, String fileName, List<Map<String, Object>> qualifications,
                          String jobDescription, String jobTitle,
-                         BigDecimal minExperienceYears, String educationLevel) {
+                         BigDecimal minExperienceYears, String educationLevel,
+                         UUID candidateId, String candidateName, String candidateEmail,
+                         String candidatePhone) {
     }
 
     record AiScreenResponse(
@@ -253,6 +297,11 @@ public class ScreeningService {
             @JsonProperty("missing_optional") List<String> missingOptional,
             @JsonProperty("reasoning") String reasoning,
             @JsonProperty("parse_quality") String parseQuality,
-            @JsonProperty("parse_warnings") List<String> parseWarnings) {
+            @JsonProperty("parse_warnings") List<String> parseWarnings,
+            @JsonProperty("extracted_phone") String extractedPhone,
+            @JsonProperty("identity_verified") Boolean identityVerified,
+            @JsonProperty("identity_flags") List<String> identityFlags,
+            @JsonProperty("identity_summary") String identitySummary,
+            @JsonProperty("resume_fingerprint") String resumeFingerprint) {
     }
 }

@@ -33,6 +33,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByCompanyId(UUID companyId);
 
+    /** Platform growth: new user signups grouped by month [YYYY-MM, count]. */
+    @Query(value = """
+            SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS m, count(*) AS c
+            FROM users
+            GROUP BY 1 ORDER BY 1
+            """, nativeQuery = true)
+    List<Object[]> newUsersByMonth();
+
     long countByCompanyIdAndRoleAndStatus(UUID companyId, Role role, UserStatus status);
 
     /**

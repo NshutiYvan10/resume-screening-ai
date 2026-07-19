@@ -32,6 +32,12 @@ public final class ApplicationDtos {
             String reasoning,
             String parseQuality,
             List<String> parseWarnings,
+            boolean identityVerified,
+            List<String> identityFlags,
+            String identitySummary,
+            String extractedName,
+            String extractedEmail,
+            String extractedPhone,
             String errorMessage,
             Instant screenedAt) {
 
@@ -44,7 +50,9 @@ public final class ApplicationDtos {
                     sr.getExtractedEducation(), sr.getExtractedExperienceYears(), sr.isBiasFlag(),
                     sr.getBiasFlagReason(), sr.getMatchedSkills(), sr.getMissingRequired(),
                     sr.getMissingOptional(), sr.getReasoning(), sr.getParseQuality(),
-                    sr.getParseWarnings(), sr.getErrorMessage(), sr.getScreenedAt());
+                    sr.getParseWarnings(), sr.isIdentityVerified(), sr.getIdentityFlags(),
+                    sr.getIdentitySummary(), sr.getExtractedName(), sr.getExtractedEmail(),
+                    sr.getExtractedPhone(), sr.getErrorMessage(), sr.getScreenedAt());
         }
     }
 

@@ -1,12 +1,11 @@
 import { ReactNode, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, FileText,
-  ShieldCheck, LogOut, Menu, X, ChevronDown, Search,
+  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase,
+  ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
-import { humanize } from '../lib/format';
 import type { Role } from '../types';
 
 interface NavItem {
@@ -20,24 +19,32 @@ const NAV: Record<Role, NavItem[]> = {
     { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/admin/companies', label: 'Companies', icon: <Building2 className="h-5 w-5" /> },
     { to: '/admin/users', label: 'Users', icon: <Users className="h-5 w-5" /> },
+    { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/admin/audit', label: 'Audit Trail', icon: <ShieldCheck className="h-5 w-5" /> },
+    { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
   ],
   COMPANY_ADMIN: [
     { to: '/company', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/company/approvals', label: 'Approvals', icon: <ClipboardCheck className="h-5 w-5" /> },
     { to: '/company/jobs', label: 'Jobs', icon: <Briefcase className="h-5 w-5" /> },
     { to: '/company/candidates', label: 'Candidates', icon: <ClipboardList className="h-5 w-5" /> },
+    { to: '/company/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/company/team', label: 'Team', icon: <Users className="h-5 w-5" /> },
     { to: '/company/profile', label: 'Company Profile', icon: <Building2 className="h-5 w-5" /> },
     { to: '/company/audit', label: 'Audit Trail', icon: <ShieldCheck className="h-5 w-5" /> },
+    { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
   ],
   RECRUITER: [
     { to: '/company', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/company/jobs', label: 'Jobs', icon: <Briefcase className="h-5 w-5" /> },
+    { to: '/company/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
   ],
   CANDIDATE: [
     { to: '/candidate', label: 'Browse Jobs', icon: <Search className="h-5 w-5" /> },
     { to: '/candidate/applications', label: 'My Applications', icon: <ClipboardList className="h-5 w-5" /> },
+    { to: '/candidate/reports', label: 'My Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
   ],
 };
 
@@ -52,7 +59,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!user) return null;
   const items = NAV[user.role];
@@ -69,7 +75,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           Resume<span className="text-brand-400">AI</span>
         </span>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -89,11 +95,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </NavLink>
         ))}
       </nav>
+
+      {/* account block: identity + sign out (moved here from the top-right corner) */}
       <div className="border-t border-slate-800 p-3">
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400">
-          <FileText className="h-4 w-4" />
-          {user.companyName || 'ResumeAI Platform'}
+        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/20 text-sm font-semibold text-brand-200">
+            {user.fullName.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-white">{user.fullName}</p>
+            <p className="truncate text-xs text-slate-400">{user.companyName || ROLE_LABEL[user.role]}</p>
+          </div>
         </div>
+        <button
+          onClick={handleLogout}
+          className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+        >
+          <LogOut className="h-5 w-5" /> Sign out
+        </button>
       </div>
     </div>
   );
@@ -130,47 +149,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            <NotificationBell />
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                  {user.fullName.charAt(0).toUpperCase()}
-                </div>
-                <div className="hidden text-left sm:block">
-                  <p className="text-sm font-medium leading-tight text-slate-800">{user.fullName}</p>
-                  <p className="text-xs leading-tight text-slate-400">{ROLE_LABEL[user.role]}</p>
-                </div>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
-              </button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-40 mt-2 w-52 card py-1">
-                    <div className="border-b border-slate-100 px-4 py-2">
-                      <p className="truncate text-sm font-medium text-slate-800">{user.email}</p>
-                    </div>
-                    <Link
-                      to="/settings"
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                    >
-                      Account settings
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      <LogOut className="h-4 w-4" /> Sign out
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <NotificationBell />
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>

@@ -20,6 +20,7 @@ from extractor import extract_entities
 from scorer import compute_score
 from bias_detector import detect_bias
 from explainer import assess_parse_quality, build_reasoning
+from identity_checker import check_identity, resume_fingerprint
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class ScreenResponse(BaseModel):
     extracted_experience_years: float
     extracted_name: str
     extracted_email: str
+    extracted_phone: str = ""
     bias_flag: bool
     bias_flag_reason: Optional[str]
     # per-qualification evidence (score and display come from the same matcher)
@@ -61,6 +63,12 @@ class ScreenResponse(BaseModel):
     reasoning: str = ""
     parse_quality: str = "good"          # good | partial | poor
     parse_warnings: List[str] = []
+    # identity verification (advisory only — never affects the score)
+    identity_verified: bool = True
+    identity_flags: List[str] = []
+    identity_summary: Optional[str] = None
+    # normalized-text fingerprint for duplicate-resume detection (backend compares)
+    resume_fingerprint: str = ""
 
 
 def _check_api_key(x_api_key: Optional[str]):
@@ -81,6 +89,9 @@ async def screen_resume(
     job_title: str = Form(""),
     min_experience_years: float = Form(0),
     education_level: str = Form(""),
+    applicant_name: str = Form(""),
+    applicant_email: str = Form(""),
+    applicant_phone: str = Form(""),
     x_api_key: Optional[str] = Header(default=None),
 ):
     """
@@ -117,6 +128,10 @@ async def screen_resume(
                                required_education_level=education_level)
         bias_result = detect_bias(resume_text, entities.get("name", ""))
 
+        # advisory identity verification (never affects the score)
+        identity = check_identity(applicant_name, applicant_email, applicant_phone, entities)
+        fingerprint = resume_fingerprint(resume_text)
+
         # displayed skills = dictionary hits UNION matched job qualifications, so
         # custom qualification terms (any industry) always show as evidence
         displayed_skills = list(entities.get("skills", []))
@@ -146,6 +161,7 @@ async def screen_resume(
             extracted_experience_years=entities.get("experience_years", 0),
             extracted_name=entities.get("name", ""),
             extracted_email=entities.get("email", ""),
+            extracted_phone=entities.get("phone", ""),
             bias_flag=bias_result["flagged"],
             bias_flag_reason=bias_result["reason"],
             matched_skills=scores.get("matched_skills", []),
@@ -154,6 +170,10 @@ async def screen_resume(
             reasoning=reasoning,
             parse_quality=parse_quality,
             parse_warnings=parse_warnings,
+            identity_verified=identity["verified"],
+            identity_flags=identity["flags"],
+            identity_summary=identity["summary"],
+            resume_fingerprint=fingerprint,
         )
     except HTTPException:
         raise

@@ -85,6 +85,32 @@ public class ScreeningResult {
     @Column(name = "bias_flag_reason", columnDefinition = "text")
     private String biasFlagReason;
 
+    // ---- identity verification (advisory; never affects the score) ----
+
+    @Column(name = "identity_verified", nullable = false)
+    @Builder.Default
+    private boolean identityVerified = true;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "identity_flags")
+    private List<String> identityFlags;
+
+    @Column(name = "identity_summary", columnDefinition = "text")
+    private String identitySummary;
+
+    @Column(name = "extracted_name", length = 200)
+    private String extractedName;
+
+    @Column(name = "extracted_email", length = 320)
+    private String extractedEmail;
+
+    @Column(name = "extracted_phone", length = 50)
+    private String extractedPhone;
+
+    /** SHA-256 of the normalized resume text; used to detect duplicate resumes. */
+    @Column(name = "resume_fingerprint", length = 64)
+    private String resumeFingerprint;
+
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 

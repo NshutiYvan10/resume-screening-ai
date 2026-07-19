@@ -69,7 +69,7 @@ export default function CompanyProfilePublic() {
         <div className="px-6 pb-6 sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-end gap-4">
-              <div className="-mt-12 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-brand-100 text-4xl font-bold text-brand-700 shadow-lg">
+              <div className="relative z-10 -mt-12 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-brand-100 text-4xl font-bold text-brand-700 shadow-lg">
                 {company.logoUrl ? (
                   <img src={company.logoUrl} alt={`${company.name} logo`} className="h-full w-full object-cover" />
                 ) : (

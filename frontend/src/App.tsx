@@ -16,6 +16,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminCompanies from './pages/admin/AdminCompanies';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminAudit from './pages/admin/AdminAudit';
+import AdminReports from './pages/admin/AdminReports';
 
 import CompanyDashboard from './pages/company/CompanyDashboard';
 import CompanyApprovals from './pages/company/CompanyApprovals';
@@ -27,11 +28,13 @@ import ApplicationDetail from './pages/company/ApplicationDetail';
 import CompanyTeam from './pages/company/CompanyTeam';
 import CompanyProfile from './pages/company/CompanyProfile';
 import CompanyAudit from './pages/company/CompanyAudit';
+import CompanyReports from './pages/company/CompanyReports';
 
 import BrowseJobs from './pages/candidate/BrowseJobs';
 import JobDetail from './pages/candidate/JobDetail';
 import MyApplications from './pages/candidate/MyApplications';
 import CompanyProfilePublic from './pages/candidate/CompanyProfilePublic';
+import CandidateReports from './pages/candidate/CandidateReports';
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
@@ -60,12 +63,14 @@ export default function App() {
       <Route path="/admin" element={<RequireAuth roles={['SUPER_ADMIN']}><Shell><AdminDashboard /></Shell></RequireAuth>} />
       <Route path="/admin/companies" element={<RequireAuth roles={['SUPER_ADMIN']}><Shell><AdminCompanies /></Shell></RequireAuth>} />
       <Route path="/admin/users" element={<RequireAuth roles={['SUPER_ADMIN']}><Shell><AdminUsers /></Shell></RequireAuth>} />
+      <Route path="/admin/reports" element={<RequireAuth roles={['SUPER_ADMIN']}><Shell><AdminReports /></Shell></RequireAuth>} />
       <Route path="/admin/audit" element={<RequireAuth roles={['SUPER_ADMIN']}><Shell><AdminAudit /></Shell></RequireAuth>} />
 
       {/* company (admin + recruiter) */}
       <Route path="/company" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><CompanyDashboard /></Shell></RequireAuth>} />
       <Route path="/company/approvals" element={<RequireAuth roles={['COMPANY_ADMIN']}><Shell><CompanyApprovals /></Shell></RequireAuth>} />
       <Route path="/company/candidates" element={<RequireAuth roles={['COMPANY_ADMIN']}><Shell><CompanyPipeline /></Shell></RequireAuth>} />
+      <Route path="/company/reports" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><CompanyReports /></Shell></RequireAuth>} />
       <Route path="/company/jobs" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><CompanyJobs /></Shell></RequireAuth>} />
       <Route path="/company/jobs/new" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><JobEditor /></Shell></RequireAuth>} />
       <Route path="/company/jobs/:jobId/edit" element={<RequireAuth roles={['COMPANY_ADMIN', 'RECRUITER']}><Shell><JobEditor /></Shell></RequireAuth>} />
@@ -80,6 +85,7 @@ export default function App() {
       <Route path="/candidate/jobs/:jobId" element={<RequireAuth roles={['CANDIDATE']}><Shell><JobDetail /></Shell></RequireAuth>} />
       <Route path="/candidate/companies/:companyId" element={<RequireAuth roles={['CANDIDATE']}><Shell><CompanyProfilePublic /></Shell></RequireAuth>} />
       <Route path="/candidate/applications" element={<RequireAuth roles={['CANDIDATE']}><Shell><MyApplications /></Shell></RequireAuth>} />
+      <Route path="/candidate/reports" element={<RequireAuth roles={['CANDIDATE']}><Shell><CandidateReports /></Shell></RequireAuth>} />
 
       {/* shared */}
       <Route path="/settings" element={<RequireAuth><Shell><Settings /></Shell></RequireAuth>} />
