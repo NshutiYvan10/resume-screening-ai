@@ -47,9 +47,11 @@ public class AiServiceLauncher implements SmartLifecycle {
             return;
         }
 
-        Path dir = Path.of(properties.getAiService().getDirectory()).toAbsolutePath().normalize();
-        if (!Files.isDirectory(dir)) {
-            log.warn("AI auto-start skipped: directory not found: {}", dir);
+        Path dir = locateAiServiceDir();
+        if (dir == null) {
+            log.warn("AI auto-start skipped: ai-service directory not found "
+                    + "(looked relative to working dir {}). Start it manually or launch the "
+                    + "backend from the repo's backend/ folder.", Path.of("").toAbsolutePath());
             running = true;
             return;
         }
@@ -118,9 +120,41 @@ public class AiServiceLauncher implements SmartLifecycle {
         return Integer.MAX_VALUE;
     }
 
+    /**
+     * Find the ai-service directory regardless of where the backend was launched
+     * from (IDE run configs and mvn -f often set an unexpected working dir).
+     */
+    private Path locateAiServiceDir() {
+        String configured = properties.getAiService().getDirectory();
+        String[] candidates = {
+                configured,                               // explicit config (may be absolute)
+                "ai-service",                             // launched from repo root
+                "../ai-service",                          // launched from backend/
+                "resume-screening-ai/ai-service",         // launched from the repo's parent
+        };
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.isBlank()) {
+                continue;
+            }
+            Path path = Path.of(candidate).toAbsolutePath().normalize();
+            // require the marker file so we never launch uvicorn in a random folder
+            if (Files.isDirectory(path) && Files.exists(path.resolve("main.py"))) {
+                return path;
+            }
+        }
+        return null;
+    }
+
     private String resolvePython(Path dir) {
-        Path venvPython = dir.resolve(".venv/bin/python");
-        return Files.isExecutable(venvPython) ? venvPython.toString() : "python3";
+        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        Path venvPython = windows
+                ? dir.resolve(".venv/Scripts/python.exe")
+                : dir.resolve(".venv/bin/python");
+        if (Files.exists(venvPython)) {
+            return venvPython.toString();
+        }
+        // bare interpreter fallback: "python3" is often absent on Windows
+        return windows ? "python" : "python3";
     }
 
     private int portOf(String baseUrl) {
