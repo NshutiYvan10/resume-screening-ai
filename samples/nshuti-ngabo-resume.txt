@@ -1,0 +1,40 @@
+Nshuti Ngabo
+Kigali, Rwanda
+nshuti.ngabo@email.com | +250 788 123 456
+LinkedIn: linkedin.com/in/nshutingabo | GitHub: github.com/nshutingabo
+
+PROFESSIONAL SUMMARY
+Software developer with 5+ years of experience building web and backend
+applications. Proficient in multiple programming languages and relational
+databases, with a strong computer science foundation and a track record of
+shipping reliable, well-tested software.
+
+TECHNICAL SKILLS
+Programming Languages: Python, Java, JavaScript, TypeScript
+Databases: PostgreSQL, MySQL, MongoDB
+Web & Frameworks: React, Node.js, Express, Django, REST APIs
+Tools & DevOps: Git, Docker, Linux, CI/CD, Unit Testing
+
+EXPERIENCE
+Software Developer — Andela Rwanda, Kigali
+2021 - Present
+- Designed and built REST APIs in Python (Django) and Node.js backed by PostgreSQL
+- Developed React front-end features used by thousands of users
+- Optimized MySQL queries and designed normalized relational database schemas
+- Set up CI/CD pipelines with Docker and GitHub Actions
+
+Junior Software Developer — Awesomity Lab, Kigali
+2020 - 2021
+- Implemented product features in Java and JavaScript
+- Wrote unit and integration tests and took part in code reviews
+
+EDUCATION
+Bachelor of Science in Computer Science
+University of Rwanda, 2016 - 2020
+
+PROJECTS
+- Inventory Management System — Python and PostgreSQL
+- E-commerce Web Application — React, Node.js and MySQL
+
+CERTIFICATIONS
+AWS Certified Cloud Practitioner
