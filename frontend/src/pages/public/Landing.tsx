@@ -6,6 +6,7 @@ import {
   Search, UploadCloud, CheckCircle2, Briefcase, MapPin, Building2, Star,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { ImageWithFallback } from '../../components/ui';
 import { humanize, formatSalary, timeAgo } from '../../lib/format';
 import type { Page, PublicJob } from '../../types';
 
@@ -147,9 +148,9 @@ export default function Landing() {
             <Link key={job.id} to={`/jobs/${job.id}`}
               className="card flex flex-col p-5 transition-all hover:border-brand-300 hover:shadow-md">
               <div className="mb-3 flex items-center gap-2 text-xs text-slate-400">
-                {job.companyLogoUrl
-                  ? <img src={job.companyLogoUrl} alt="" className="h-5 w-5 rounded object-cover" />
-                  : <Building2 className="h-3.5 w-3.5" />}
+                <ImageWithFallback src={job.companyLogoUrl} className="h-5 w-5 rounded object-cover">
+                  <Building2 className="h-3.5 w-3.5" />
+                </ImageWithFallback>
                 <span>{job.companyName}</span>
               </div>
               <h3 className="font-semibold text-slate-800 line-clamp-2">{job.title}</h3>

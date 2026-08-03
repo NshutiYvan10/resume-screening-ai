@@ -20,6 +20,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -104,7 +106,7 @@ public class CompanyService {
     public CompanyResponse uploadLogo(UUID companyId, MultipartFile file) {
         Company company = requireEditable(companyId);
         String path = fileStorageService.storeCompanyImage(file, companyId);
-        fileStorageService.deleteQuietly(company.getLogoPath());
+        deleteAfterCommit(company.getLogoPath());
         company.setLogoPath(path);
         auditService.log("COMPANY_LOGO_UPDATED", "COMPANY", companyId.toString(), Map.of());
         return CompanyResponse.from(company, photosOf(companyId));
@@ -114,7 +116,7 @@ public class CompanyService {
     public CompanyResponse uploadCover(UUID companyId, MultipartFile file) {
         Company company = requireEditable(companyId);
         String path = fileStorageService.storeCompanyImage(file, companyId);
-        fileStorageService.deleteQuietly(company.getCoverPath());
+        deleteAfterCommit(company.getCoverPath());
         company.setCoverPath(path);
         auditService.log("COMPANY_COVER_UPDATED", "COMPANY", companyId.toString(), Map.of());
         return CompanyResponse.from(company, photosOf(companyId));
@@ -146,10 +148,27 @@ public class CompanyService {
         if (!photo.getCompany().getId().equals(companyId)) {
             throw ApiException.forbidden("Photo belongs to another company");
         }
-        fileStorageService.deleteQuietly(photo.getPath());
+        deleteAfterCommit(photo.getPath());
         companyPhotoRepository.delete(photo);
         auditService.log("COMPANY_PHOTO_REMOVED", "COMPANY", companyId.toString(), Map.of());
         return CompanyResponse.from(company, photosOf(companyId));
+    }
+
+    /**
+     * Remove a superseded image only once the replacement path is durably persisted.
+     * Deleting inline would destroy the current image even if the transaction later
+     * rolls back, leaving the company with a path pointing at a missing file.
+     */
+    private void deleteAfterCommit(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                fileStorageService.deleteQuietly(relativePath);
+            }
+        });
     }
 
     // ------------------------------------------------------------ status

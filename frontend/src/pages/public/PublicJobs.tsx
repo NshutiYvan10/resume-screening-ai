@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, MapPin, Briefcase, Building2, Clock } from 'lucide-react';
 import { api } from '../../lib/api';
-import { Spinner, EmptyState, Pagination } from '../../components/ui';
+import { Spinner, EmptyState, Pagination, ImageWithFallback } from '../../components/ui';
 import { formatSalary, humanize, timeAgo } from '../../lib/format';
 import type { EmploymentType, Page, PublicJob, WorkMode } from '../../types';
 
@@ -78,9 +78,9 @@ export default function PublicJobs() {
               <Link key={job.id} to={`/jobs/${job.id}`}
                 className="card flex flex-col p-5 transition-all hover:border-brand-300 hover:shadow-md">
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-400">
-                  {job.companyLogoUrl
-                    ? <img src={job.companyLogoUrl} alt="" className="h-5 w-5 rounded object-cover" />
-                    : <Building2 className="h-3.5 w-3.5" />}
+                  <ImageWithFallback src={job.companyLogoUrl} className="h-5 w-5 rounded object-cover">
+                    <Building2 className="h-3.5 w-3.5" />
+                  </ImageWithFallback>
                   <span>{job.companyName}</span>
                 </div>
                 <h3 className="font-semibold text-slate-800 line-clamp-2">{job.title}</h3>

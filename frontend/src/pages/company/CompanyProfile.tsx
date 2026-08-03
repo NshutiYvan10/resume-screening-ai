@@ -5,7 +5,7 @@ import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import PageHeader from '../../components/PageHeader';
 import TagInput from '../../components/TagInput';
-import { Field, Spinner, PageLoader } from '../../components/ui';
+import { Field, Spinner, PageLoader, ImageWithFallback } from '../../components/ui';
 import type { Company } from '../../types';
 
 interface FormState {
@@ -133,9 +133,7 @@ export default function CompanyProfile() {
       {/* ---------- branding ---------- */}
       <div className="card overflow-hidden">
         <div className="relative h-40 bg-gradient-to-r from-slate-800 via-brand-800 to-brand-600 sm:h-48">
-          {data.coverUrl && (
-            <img src={data.coverUrl} alt="Cover" className="h-full w-full object-cover" />
-          )}
+          <ImageWithFallback src={data.coverUrl} alt="Cover" className="h-full w-full object-cover" />
           <button
             type="button"
             onClick={() => coverInput.current?.click()}
@@ -153,11 +151,9 @@ export default function CompanyProfile() {
         <div className="flex items-end gap-4 px-6 pb-5">
           <div className="relative -mt-10">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-brand-100 text-2xl font-bold text-brand-700 shadow">
-              {data.logoUrl ? (
-                <img src={data.logoUrl} alt="Logo" className="h-full w-full object-cover" />
-              ) : (
-                data.name.charAt(0).toUpperCase()
-              )}
+              <ImageWithFallback src={data.logoUrl} alt="Logo" className="h-full w-full object-cover">
+                {data.name.charAt(0).toUpperCase()}
+              </ImageWithFallback>
             </div>
             <button
               type="button"
@@ -209,7 +205,12 @@ export default function CompanyProfile() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {data.photos.map((p) => (
               <div key={p.id} className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
-                <img src={p.url} alt={p.caption || 'Company photo'} className="h-full w-full object-cover" />
+                <ImageWithFallback src={p.url} alt={p.caption || 'Company photo'}
+                                  className="h-full w-full object-cover">
+                  <div className="flex h-full w-full items-center justify-center">
+                    <ImagePlus className="h-6 w-6 text-slate-300" />
+                  </div>
+                </ImageWithFallback>
                 <button
                   type="button"
                   onClick={() => deletePhoto(p.id)}

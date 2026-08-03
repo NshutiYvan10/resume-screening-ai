@@ -4,6 +4,7 @@ import {
   AreaChart, Area, PieChart, Pie, CartesianGrid, Legend,
 } from 'recharts';
 import { Printer, Download } from 'lucide-react';
+import { ImageWithFallback } from '../ui';
 import { humanize } from '../../lib/format';
 
 /** Brand palette reused across every chart so reports read consistently. */
@@ -55,13 +56,12 @@ export function ReportHeader({
     <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 via-brand-800 to-brand-600 p-6 text-white">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          {brandLogoUrl ? (
-            <img src={brandLogoUrl} alt="" className="h-12 w-12 rounded-xl border border-white/30 bg-white object-cover" />
-          ) : (
+          <ImageWithFallback src={brandLogoUrl} alt=""
+                            className="h-12 w-12 rounded-xl border border-white/30 bg-white object-cover">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-lg font-extrabold">
               {(brandName || 'R').charAt(0).toUpperCase()}
             </div>
-          )}
+          </ImageWithFallback>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-brand-100">
               {brandName ? `${brandName} · ResumeAI` : 'ResumeAI Analytics'}

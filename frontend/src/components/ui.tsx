@@ -1,9 +1,33 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={clsx('animate-spin', className)} />;
+}
+
+/**
+ * Renders a remote image, falling back to `children` when there is no src or the
+ * browser cannot decode it. Without this, an unreadable image leaves a broken-image
+ * icon on the page with no hint that anything went wrong.
+ */
+export function ImageWithFallback({
+  src,
+  alt = '',
+  className,
+  children,
+}: {
+  src?: string | null;
+  alt?: string;
+  className?: string;
+  children?: ReactNode;
+}) {
+  // track the failed URL rather than a boolean, so a newly uploaded image is retried
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (!src || failedSrc === src) {
+    return <>{children}</>;
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailedSrc(src)} />;
 }
 
 export function PageLoader() {

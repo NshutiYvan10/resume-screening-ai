@@ -5,7 +5,7 @@ import { Search, MapPin, Briefcase, Building2, Clock, CheckCircle2 } from 'lucid
 import { api } from '../../lib/api';
 import PageHeader from '../../components/PageHeader';
 import { useMyApplicationsMap } from '../../lib/useMyApplications';
-import { Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
+import { Spinner, EmptyState, Pagination, StatusPill, ImageWithFallback } from '../../components/ui';
 import { APPLICATION_STATUS_STYLES, formatDate, formatSalary, humanize, timeAgo } from '../../lib/format';
 import type { EmploymentType, Page, PublicJob, WorkMode } from '../../types';
 
@@ -102,11 +102,9 @@ export default function BrowseJobs() {
                   </span>
                 )}
                 <div className="mb-3 flex items-center gap-2 text-xs text-slate-400">
-                  {job.companyLogoUrl ? (
-                    <img src={job.companyLogoUrl} alt="" className="h-5 w-5 rounded object-cover" />
-                  ) : (
+                  <ImageWithFallback src={job.companyLogoUrl} className="h-5 w-5 rounded object-cover">
                     <Building2 className="h-3.5 w-3.5" />
-                  )}
+                  </ImageWithFallback>
                   <span
                     role="link"
                     tabIndex={0}

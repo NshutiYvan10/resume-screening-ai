@@ -4,11 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft, Building2, MapPin, Users, Globe, Briefcase, Calendar, Clock,
   Target, HeartHandshake, Sparkles, Linkedin, Twitter, X, ChevronLeft, ChevronRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { CheckCircle2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useMyApplicationsMap } from '../../lib/useMyApplications';
-import { PageLoader, EmptyState, StatusPill } from '../../components/ui';
+import { PageLoader, EmptyState, StatusPill, ImageWithFallback } from '../../components/ui';
 import { APPLICATION_STATUS_STYLES, formatSalary, humanize, timeAgo } from '../../lib/format';
 import type { Page, PublicCompany, PublicJob } from '../../types';
 
@@ -60,9 +61,7 @@ export default function CompanyProfilePublic() {
       {/* ---------- hero ---------- */}
       <div className="card overflow-hidden">
         <div className="relative h-44 sm:h-56 bg-gradient-to-r from-slate-900 via-brand-800 to-brand-600">
-          {company.coverUrl && (
-            <img src={company.coverUrl} alt="" className="h-full w-full object-cover" />
-          )}
+          <ImageWithFallback src={company.coverUrl} alt="" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         </div>
 
@@ -70,11 +69,10 @@ export default function CompanyProfilePublic() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-end gap-4">
               <div className="relative z-10 -mt-12 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-brand-100 text-4xl font-bold text-brand-700 shadow-lg">
-                {company.logoUrl ? (
-                  <img src={company.logoUrl} alt={`${company.name} logo`} className="h-full w-full object-cover" />
-                ) : (
-                  company.name.charAt(0).toUpperCase()
-                )}
+                <ImageWithFallback src={company.logoUrl} alt={`${company.name} logo`}
+                                  className="h-full w-full object-cover">
+                  {company.name.charAt(0).toUpperCase()}
+                </ImageWithFallback>
               </div>
               <div className="pb-1">
                 <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
@@ -196,11 +194,15 @@ export default function CompanyProfilePublic() {
                 onClick={() => setLightbox(i)}
                 className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-100"
               >
-                <img
+                <ImageWithFallback
                   src={p.url}
                   alt={p.caption || `${company.name} photo`}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+                >
+                  <div className="flex h-full w-full items-center justify-center">
+                    <ImageIcon className="h-6 w-6 text-slate-300" />
+                  </div>
+                </ImageWithFallback>
                 {p.caption && (
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 text-left text-xs text-white">
                     {p.caption}
