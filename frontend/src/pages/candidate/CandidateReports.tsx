@@ -5,7 +5,8 @@ import { api } from '../../lib/api';
 import StatCard from '../../components/StatCard';
 import { PageLoader, EmptyState } from '../../components/ui';
 import {
-  ReportHeader, ReportSection, PipelineFunnel, TrendChart, ScoreDistributionChart, PrintButton,
+  ReportHeader, ReportSection, PipelineFunnel, TrendChart, ScoreDistributionChart,
+  GeneratePdfLink,
 } from '../../components/reports/ReportKit';
 
 interface CandidateAnalytics {
@@ -45,7 +46,7 @@ export default function CandidateReports() {
       <ReportHeader
         title="My application insights"
         description="How your applications are progressing and how you score against roles"
-        action={<PrintButton />}
+        action={<GeneratePdfLink />}
       />
 
       {!data?.totalApplications ? (

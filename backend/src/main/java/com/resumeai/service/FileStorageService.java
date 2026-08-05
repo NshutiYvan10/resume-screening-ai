@@ -2,6 +2,7 @@ package com.resumeai.service;
 
 import com.resumeai.common.exception.ApiException;
 import com.resumeai.config.AppProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class FileStorageService {
 
     // legacy binary .doc is rejected: the AI service cannot parse it, so accepting
@@ -27,12 +29,58 @@ public class FileStorageService {
     private final Path root;
 
     public FileStorageService(AppProperties properties) {
-        this.root = Path.of(properties.getStorage().getRoot()).toAbsolutePath().normalize();
+        this.root = resolveRoot(properties.getStorage().getRoot());
         try {
             Files.createDirectories(root);
         } catch (IOException e) {
             throw new IllegalStateException("Could not create storage directory: " + root, e);
         }
+        // logged because a wrong root is otherwise invisible: uploads succeed and only
+        // later reads 404, which looks like data loss rather than a path problem
+        log.info("File storage root: {}", root);
+    }
+
+    /**
+     * Resolve the configured storage root to a stable absolute path.
+     *
+     * <p>A relative root (the {@code ./storage} default) is anchored to the application's
+     * own directory rather than the process working directory. Otherwise starting the app
+     * from the repository root instead of {@code backend/} silently points at a different,
+     * empty store and every previously uploaded résumé, logo and report returns 404.
+     * An absolute root is always honoured as given, which is what production should set.
+     */
+    private static Path resolveRoot(String configured) {
+        Path configuredPath = Path.of(configured);
+        if (configuredPath.isAbsolute()) {
+            return configuredPath.normalize();
+        }
+        return applicationHome().resolve(configuredPath).normalize();
+    }
+
+    /** The module directory holding the running classes or jar, independent of the shell's cwd. */
+    private static Path applicationHome() {
+        try {
+            Path location = Path.of(FileStorageService.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI());
+            if (Files.isRegularFile(location)) {
+                location = location.getParent();        // packaged jar -> its directory
+            }
+            if (isNamed(location, "classes")) {
+                location = location.getParent();        // target/classes -> target
+            }
+            if (isNamed(location, "target")) {
+                location = location.getParent();        // target -> backend
+            }
+            return location;
+        } catch (Exception e) {
+            // last resort: behave as before rather than fail to start
+            return Path.of("").toAbsolutePath();
+        }
+    }
+
+    private static boolean isNamed(Path path, String name) {
+        return path != null && path.getFileName() != null
+                && path.getFileName().toString().equals(name);
     }
 
     /**
@@ -174,6 +222,27 @@ public class FileStorageService {
             return javax.imageio.ImageIO.read(in) != null;
         } catch (IOException | RuntimeException e) {
             return false;
+        }
+    }
+
+    /**
+     * Store (or replace) a generated report PDF under storage-root/reports/ and return
+     * the path relative to the storage root. Reports are keyed by their own id and are
+     * overwritten in place when a document is re-rendered on approval.
+     *
+     * <p>Unlike company media these are never publicly served - every read goes through
+     * an authorised endpoint - so they are not partitioned by tenant on disk.
+     */
+    public String storeReport(byte[] pdf, UUID reportId) {
+        try {
+            Path dir = root.resolve("reports");
+            Files.createDirectories(dir);
+            Path target = dir.resolve(reportId + ".pdf");
+            Files.write(target, pdf);
+            return toRelativeKey(target);
+        } catch (IOException e) {
+            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to store the generated report");
         }
     }
 

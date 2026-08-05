@@ -11,6 +11,7 @@ import ResetPassword from './pages/auth/ResetPassword';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import AcceptInvitation from './pages/auth/AcceptInvitation';
 import Settings from './pages/Settings';
+import ReportCenter from './pages/reports/ReportCenter';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminCompanies from './pages/admin/AdminCompanies';
@@ -98,6 +99,7 @@ export default function App() {
       <Route path="/candidate/reports" element={<RequireAuth roles={['CANDIDATE']}><Shell><CandidateReports /></Shell></RequireAuth>} />
 
       {/* shared */}
+      <Route path="/reports" element={<RequireAuth><Shell><ReportCenter /></Shell></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><Shell><Settings /></Shell></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

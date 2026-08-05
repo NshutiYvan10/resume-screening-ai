@@ -86,7 +86,16 @@ public class AnalyticsService {
         if (companyId == null) {
             throw ApiException.forbidden("You are not associated with a company");
         }
+        return companyFor(companyId);
+    }
 
+    /**
+     * Same figures for an explicit company. Report rendering runs on a background
+     * thread with no SecurityContext, so it cannot use the no-arg variant - the
+     * caller resolves and authorises the company id first.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> companyFor(UUID companyId) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("totalJobs", jobRepository.countByCompanyId(companyId));
         out.put("publishedJobs", jobRepository.countByCompanyIdAndStatus(companyId, JobStatus.PUBLISHED));
@@ -134,9 +143,12 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> recruiter() {
-        UserPrincipal actor = SecurityUtils.requireCurrentUser();
-        UUID userId = actor.getId();
+        return recruiterFor(SecurityUtils.requireCurrentUser().getId());
+    }
 
+    /** Same figures for an explicit recruiter; safe to call off the request thread. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> recruiterFor(UUID userId) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("totalJobs", jobRepository.countByCreatedById(userId));
         out.put("publishedJobs", jobRepository.countByCreatedByIdAndStatus(userId, JobStatus.PUBLISHED));
@@ -159,9 +171,12 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> candidate() {
-        UserPrincipal actor = SecurityUtils.requireCurrentUser();
-        UUID candidateId = actor.getId();
+        return candidateFor(SecurityUtils.requireCurrentUser().getId());
+    }
 
+    /** Same figures for an explicit candidate; safe to call off the request thread. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> candidateFor(UUID candidateId) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("totalApplications", applicationRepository.countByCandidateId(candidateId));
 

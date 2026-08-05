@@ -10,7 +10,7 @@ import { humanize } from '../../lib/format';
 import type { Company } from '../../types';
 import {
   ReportHeader, ReportSection, PipelineFunnel, TrendChart, ScoreDistributionChart,
-  PrintButton, ExportCsvButton, downloadCsv,
+  downloadCsv, ExportCsvButton, GeneratePdfLink,
 } from '../../components/reports/ReportKit';
 
 interface JobPerf {
@@ -84,7 +84,7 @@ export default function CompanyReports() {
           : 'Applications and screening quality across the jobs you manage'}
         brandName={company?.name}
         brandLogoUrl={company?.logoUrl}
-        action={<><ExportCsvButton onClick={exportJobs} /><PrintButton /></>}
+        action={<GeneratePdfLink />}
       />
 
       {/* KPI row */}

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:text="${meta.title}">Report</title>
+    <style>
+        /* Paged media: the running header/footer and page counter are declared once here,
+           so every report type gets identical chrome on every page automatically. */
+        @page {
+            size: A4;
+            margin: 108pt 40pt 58pt 40pt;
+            @top-center { content: element(runningHeader); }
+            @bottom-left { content: element(runningFooter); }
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-family: Helvetica, sans-serif; font-size: 7.5pt; color: #64748b;
+            }
+        }
+        body { font-family: Helvetica, sans-serif; font-size: 9pt; color: #0f172a; margin: 0; }
+
+        #runningHeader { position: running(runningHeader); width: 100%; }
+        #runningFooter { position: running(runningFooter); width: 100%; }
+
+        .hdr { border-bottom: 1.2pt solid #334155; padding-bottom: 6pt; width: 100%; }
+        .hdr td { vertical-align: middle; border: none; padding: 0; }
+        .hdr .logo { width: 34pt; }
+        .hdr .logo img { width: 30pt; height: 30pt; }
+        .hdr .org { font-size: 11pt; font-weight: bold; }
+        .hdr .doc { font-size: 8pt; color: #475569; }
+        .hdr .ref { text-align: right; font-size: 7.5pt; color: #475569; }
+
+        .ftr { border-top: 0.6pt solid #cbd5e1; padding-top: 4pt;
+               font-size: 7.5pt; color: #64748b; width: 100%; }
+
+        /* Repeats on every page in openhtmltopdf, so a draft can never be mistaken
+           for a signed-off document even after it leaves the app. */
+        .watermark {
+            position: fixed; top: 300pt; left: 60pt;
+            transform: rotate(-32deg);
+            font-size: 46pt; font-weight: bold;
+            color: #dc2626; opacity: 0.14;
+            letter-spacing: 3pt;
+        }
+
+        h1 { font-size: 17pt; margin: 0 0 2pt 0; }
+        h2 { font-size: 11pt; margin: 16pt 0 6pt 0; padding-bottom: 3pt;
+             border-bottom: 0.8pt solid #e2e8f0; color: #1e293b; }
+        h3 { font-size: 9.5pt; margin: 10pt 0 4pt 0; color: #334155; }
+        p  { margin: 0 0 6pt 0; line-height: 1.45; }
+        .muted { color: #64748b; }
+        .small { font-size: 8pt; }
+
+        table.meta { width: 100%; margin: 10pt 0 4pt 0; border-collapse: collapse; }
+        table.meta td { border: 0.6pt solid #e2e8f0; padding: 4pt 6pt; font-size: 8pt; }
+        table.meta td.k { background: #f1f5f9; color: #475569; width: 88pt; font-weight: bold; }
+
+        table.data { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt 0;
+                     -fs-table-paginate: paginate; }
+        table.data th { background: #e8ecf4; border: 0.6pt solid #cbd5e1;
+                        padding: 4pt 5pt; text-align: left; font-size: 8pt; }
+        table.data td { border: 0.6pt solid #e2e8f0; padding: 3.5pt 5pt; font-size: 8pt; }
+        table.data tr.alt td { background: #f8fafc; }
+        .num { text-align: right; }
+
+        /* KPI strip */
+        table.kpis { width: 100%; border-collapse: separate; border-spacing: 5pt 0; margin: 8pt 0; }
+        table.kpis td { background: #f8fafc; border: 0.6pt solid #e2e8f0; padding: 7pt; width: 25%; }
+        .kpi-l { font-size: 7pt; color: #64748b; text-transform: uppercase; }
+        .kpi-v { font-size: 15pt; font-weight: bold; color: #0f172a; }
+
+        /* Bar chart drawn with plain boxes - no JS, no image rasterisation */
+        table.bars { width: 100%; border-collapse: collapse; }
+        table.bars td { padding: 1.6pt 0; border: none; font-size: 8pt; }
+        td.bar-l { width: 108pt; color: #334155; }
+        td.bar-v { width: 42pt; text-align: right; color: #475569; }
+        .bar { background: #4f46e5; height: 8pt; }
+        .bar-track { background: #eef0f4; height: 8pt; }
+
+        .sign { margin-top: 18pt; width: 100%; border-collapse: collapse; }
+        .sign td { width: 50%; border: 0.6pt solid #cbd5e1; padding: 8pt; vertical-align: top; font-size: 8pt; }
+        .sign .lbl { font-size: 7pt; color: #64748b; text-transform: uppercase; }
+        .sign .nm { font-size: 9.5pt; font-weight: bold; }
+        .pending { color: #b45309; font-style: italic; }
+        .empty { color: #64748b; font-style: italic; font-size: 8pt; }
+    </style>
+</head>
+<body>
+
+<!-- running header, repeated on every page -->
+<div id="runningHeader">
+    <table class="hdr">
+        <tr>
+            <td class="logo" th:if="${meta.companyLogoDataUri != null}">
+                <img th:src="${meta.companyLogoDataUri}" alt=""/>
+            </td>
+            <td>
+                <div class="org" th:text="${meta.companyName != null} ? ${meta.companyName} : 'ResumeAI Platform'">Org</div>
+                <div class="doc" th:text="${meta.title}">Report</div>
+            </td>
+            <td class="ref">
+                <div th:text="'Ref ' + ${meta.referenceNo}">Ref</div>
+                <div th:text="${meta.statusLabel}">Status</div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- running footer, repeated on every page -->
+<div id="runningFooter">
+    <div class="ftr">
+        <span th:text="${meta.companyName != null} ? ${meta.companyName} + ' · ResumeAI' : 'ResumeAI Platform'">Org</span>
+        <span> · </span>
+        <span th:text="'Ref ' + ${meta.referenceNo}">Ref</span>
+        <span> · </span>
+        <span th:text="${meta.draft} ? 'Draft - not approved' : (${meta.selfAcknowledged} ? 'Acknowledged document' : 'Approved document')">state</span>
+        <span> · Confidential</span>
+    </div>
+</div>
+
+<div class="watermark" th:if="${meta.draft}">DRAFT</div>
+
+<!-- ================ cover block ================ -->
+<h1 th:text="${meta.title}">Title</h1>
+<p class="muted small" th:text="${meta.description}">Description</p>
+
+<table class="meta">
+    <tr>
+        <td class="k">Report ID</td>
+        <td th:text="${meta.referenceNo}">REF</td>
+        <td class="k">Status</td>
+        <td th:text="${meta.statusLabel}">Status</td>
+    </tr>
+    <tr>
+        <td class="k">Generated</td>
+        <td th:text="${meta.generatedAt != null} ? ${#temporals.format(meta.generatedAt, 'dd MMM yyyy HH:mm')} + ' UTC' : '-'">when</td>
+        <td class="k">Scope</td>
+        <td th:text="${meta.scope}">scope</td>
+    </tr>
+    <tr>
+        <td class="k">Prepared by</td>
+        <td th:text="${meta.preparedByName} + ' (' + ${meta.preparedByRole} + ')'">who</td>
+        <td class="k">Period</td>
+        <td th:text="${meta.periodStart != null and meta.periodEnd != null}
+                     ? ${#temporals.format(meta.periodStart,'dd MMM yyyy')} + ' - ' + ${#temporals.format(meta.periodEnd,'dd MMM yyyy')}
+                     : 'All data to date'">period</td>
+    </tr>
+</table>
+
+<!-- ================ type-specific body ================ -->
+<div th:replace="~{reports/sections :: __${fragment}__}">body</div>
+
+<!-- ================ signature block ================ -->
+<table class="sign">
+    <tr>
+        <td>
+            <div class="lbl">Prepared by</div>
+            <div class="nm" th:text="${meta.preparedByName}">name</div>
+            <div class="muted" th:text="${meta.preparedByRole}">role</div>
+            <div class="muted" th:text="${meta.generatedAt != null} ? ${#temporals.format(meta.generatedAt, 'dd MMM yyyy HH:mm')} + ' UTC' : ''">at</div>
+        </td>
+        <td>
+            <div class="lbl" th:text="${meta.selfAcknowledged} ? 'Acknowledged by' : 'Approved by'">Approved by</div>
+            <div th:if="${meta.approvedByName != null}">
+                <div class="nm" th:text="${meta.approvedByName}">name</div>
+                <div class="muted" th:text="${meta.approvedByRole}">role</div>
+                <div class="muted" th:text="${#temporals.format(meta.approvedAt, 'dd MMM yyyy HH:mm')} + ' UTC'">at</div>
+            </div>
+            <div th:if="${meta.approvedByName == null}" class="pending">
+                Not yet approved - this document is a draft.
+            </div>
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- =========================================================================
+     Shared building blocks. Every report type composes these, which is what
+     keeps two reports of the same type looking identical.
+     ========================================================================= -->
+
+<!-- horizontal bar chart for any Map<String, Number>; widths come from ReportCharts -->
+<div th:fragment="bars(m)" th:remove="tag" th:with="rows=${chart.bars(m)}">
+    <p class="empty" th:if="${rows.isEmpty()}">No data for this period.</p>
+    <table class="bars" th:unless="${rows.isEmpty()}">
+        <tr th:each="r : ${rows}">
+            <td class="bar-l" th:text="${r.label}">label</td>
+            <td>
+                <div class="bar-track">
+                    <div class="bar" th:style="'width:' + ${r.pct} + '%'"></div>
+                </div>
+            </td>
+            <td class="bar-v" th:text="${r.value}">0</td>
+        </tr>
+    </table>
+</div>
+
+<!-- month series: [{month,count}] -->
+<div th:fragment="trend(rows)" th:remove="tag">
+    <p class="empty" th:if="${rows == null or rows.isEmpty()}">No activity recorded yet.</p>
+    <table class="data" th:unless="${rows == null or rows.isEmpty()}">
+        <tr><th>Month</th><th class="num">Count</th></tr>
+        <tr th:each="r,i : ${rows}" th:class="${i.odd} ? 'alt' : ''">
+            <td th:text="${r.month}">month</td>
+            <td class="num" th:text="${r.count}">0</td>
+        </tr>
+    </table>
+</div>
+
+<!-- =========================================================================
+     PLATFORM_ACTIVITY_SUMMARY
+     ========================================================================= -->
+<div th:fragment="platform-activity" th:remove="tag">
+    <h2>Platform at a glance</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Companies</div><div class="kpi-v" th:text="${d.totalCompanies}">0</div></td>
+            <td><div class="kpi-l">Active companies</div><div class="kpi-v" th:text="${d.activeCompanies}">0</div></td>
+            <td><div class="kpi-l">Users</div><div class="kpi-v" th:text="${d.totalUsers}">0</div></td>
+            <td><div class="kpi-l">Applications</div><div class="kpi-v" th:text="${d.totalApplications}">0</div></td>
+        </tr>
+    </table>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Candidates</div><div class="kpi-v" th:text="${d.totalCandidates}">0</div></td>
+            <td><div class="kpi-l">Recruiting staff</div><div class="kpi-v" th:text="${d.totalRecruiters}">0</div></td>
+            <td><div class="kpi-l">Job postings</div><div class="kpi-v" th:text="${d.totalJobs}">0</div></td>
+            <td><div class="kpi-l">Published jobs</div><div class="kpi-v" th:text="${d.publishedJobs}">0</div></td>
+        </tr>
+    </table>
+
+    <h2>Users by role</h2>
+    <div th:replace="~{reports/sections :: bars(${d.usersByRole})}"></div>
+
+    <h2>Job postings by status</h2>
+    <div th:replace="~{reports/sections :: bars(${d.jobsByStatus})}"></div>
+
+    <h2>Applications by status</h2>
+    <div th:replace="~{reports/sections :: bars(${d.applicationsByStatus})}"></div>
+
+    <h2>Application volume by month</h2>
+    <div th:replace="~{reports/sections :: trend(${d.applicationsOverTime})}"></div>
+
+    <h2>New users by month</h2>
+    <div th:replace="~{reports/sections :: trend(${d.usersOverTime})}"></div>
+</div>
+
+<!-- =========================================================================
+     PLATFORM_AUDIT_TRAIL / COMPANY_AUDIT_TRAIL
+     ========================================================================= -->
+<div th:fragment="audit-trail" th:remove="tag">
+    <h2>Summary</h2>
+    <p>
+        <span th:text="${d.entryCount}">0</span>
+        <span> audit entries are included in this report, most recent first.</span>
+        <span th:if="${d.truncated}" class="muted">
+            Only the most recent entries are shown; narrow the period for a complete extract.
+        </span>
+    </p>
+
+    <h2>Actions by frequency</h2>
+    <div th:replace="~{reports/sections :: bars(${d.byAction})}"></div>
+
+    <h2>Audit entries</h2>
+    <p class="empty" th:if="${d.entries.isEmpty()}">No audit activity recorded.</p>
+    <table class="data" th:unless="${d.entries.isEmpty()}">
+        <tr>
+            <th>Timestamp (UTC)</th><th>Actor</th><th>Role</th>
+            <th>Action</th><th>Entity</th><th>IP</th>
+        </tr>
+        <tr th:each="e,i : ${d.entries}" th:class="${i.odd} ? 'alt' : ''">
+            <td th:text="${#temporals.format(e.at, 'dd MMM yyyy HH:mm:ss')}">ts</td>
+            <td th:text="${e.actor}">actor</td>
+            <td th:text="${e.role}">role</td>
+            <td th:text="${#strings.replace(e.action,'_',' ')}">action</td>
+            <td th:text="${e.entityType}">entity</td>
+            <td th:text="${e.ip} ?: '-'">ip</td>
+        </tr>
+    </table>
+</div>
+
+<!-- =========================================================================
+     AI_SCREENING_HEALTH
+     ========================================================================= -->
+<div th:fragment="screening-health" th:remove="tag">
+    <h2>Throughput</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Total screenings</div><div class="kpi-v" th:text="${d.totalScreenings}">0</div></td>
+            <td><div class="kpi-l">Failure rate</div>
+                <div class="kpi-v" th:text="${d.failureRatePct != null} ? ${d.failureRatePct} + '%' : '-'">-</div></td>
+            <td><div class="kpi-l">Sample reviewed</div><div class="kpi-v" th:text="${d.sampleSize}">0</div></td>
+            <td><div class="kpi-l">Fairness flags</div><div class="kpi-v" th:text="${d.biasFlagged}">0</div></td>
+        </tr>
+    </table>
+
+    <h2>Screenings by status</h2>
+    <div th:replace="~{reports/sections :: bars(${d.screeningByStatus})}"></div>
+
+    <h2>Résumé parse quality</h2>
+    <div th:replace="~{reports/sections :: bars(${d.parseQuality})}"></div>
+
+    <h2>Advisory flags</h2>
+    <p>
+        Within the most recent <span th:text="${d.sampleSize}">0</span> screenings,
+        <span th:text="${d.biasFlagged}">0</span> were flagged for possible bias indicators and
+        <span th:text="${d.identityFlagged}">0</span> raised an identity mismatch between the
+        applicant's account and the details read from their résumé.
+    </p>
+    <p class="muted small">
+        These flags are advisory. They mark applications for human review and never
+        automatically reject a candidate.
+    </p>
+</div>
+
+<!-- =========================================================================
+     COMPANY_HIRING_PERFORMANCE
+     ========================================================================= -->
+<div th:fragment="hiring-performance" th:remove="tag">
+    <h2>Headline figures</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Job postings</div><div class="kpi-v" th:text="${d.totalJobs}">0</div></td>
+            <td><div class="kpi-l">Applications</div><div class="kpi-v" th:text="${d.totalApplications}">0</div></td>
+            <td><div class="kpi-l">Hires</div><div class="kpi-v" th:text="${d.hires}">0</div></td>
+            <td><div class="kpi-l">Team members</div><div class="kpi-v" th:text="${d.teamMembers}">0</div></td>
+        </tr>
+    </table>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Avg match score</div>
+                <div class="kpi-v" th:text="${d.averageMatchScore} ?: '-'">-</div></td>
+            <td><div class="kpi-l">Avg time to hire</div>
+                <div class="kpi-v" th:text="${d.avgTimeToHireDays != null} ? ${d.avgTimeToHireDays} + 'd' : '-'">-</div></td>
+            <td><div class="kpi-l">Offer acceptance</div>
+                <div class="kpi-v" th:text="${d.offers.acceptanceRate != null} ? ${d.offers.acceptanceRate} + '%' : '-'">-</div></td>
+            <td><div class="kpi-l">Fairness flags</div><div class="kpi-v" th:text="${d.biasFlaggedCount}">0</div></td>
+        </tr>
+    </table>
+
+    <h2>Candidate pipeline</h2>
+    <div th:replace="~{reports/sections :: bars(${d.pipeline})}"></div>
+
+    <h2>Match score distribution</h2>
+    <div th:replace="~{reports/sections :: bars(${d.scoreDistribution})}"></div>
+
+    <h2>Offer outcomes</h2>
+    <div th:replace="~{reports/sections :: bars(${d.offers.byStatus})}"></div>
+
+    <h2>Most common candidate skills</h2>
+    <p class="empty" th:if="${d.topSkills.isEmpty()}">No screened applications yet.</p>
+    <table class="data" th:unless="${d.topSkills.isEmpty()}">
+        <tr><th>Skill</th><th class="num">Candidates</th></tr>
+        <tr th:each="s,i : ${d.topSkills}" th:class="${i.odd} ? 'alt' : ''">
+            <td th:text="${s.skill}">skill</td>
+            <td class="num" th:text="${s.count}">0</td>
+        </tr>
+    </table>
+
+    <h2>Application volume by month</h2>
+    <div th:replace="~{reports/sections :: trend(${d.applicationsOverTime})}"></div>
+
+    <h2>Performance by job posting</h2>
+    <div th:replace="~{reports/sections :: jobtable(${d.jobPerformance})}"></div>
+</div>
+
+<!-- shared job performance table -->
+<div th:fragment="jobtable(rows)" th:remove="tag">
+    <p class="empty" th:if="${rows == null or rows.isEmpty()}">No job postings yet.</p>
+    <table class="data" th:unless="${rows == null or rows.isEmpty()}">
+        <tr><th>Job title</th><th>Status</th><th class="num">Applications</th><th class="num">Avg score</th></tr>
+        <tr th:each="j,i : ${rows}" th:class="${i.odd} ? 'alt' : ''">
+            <td th:text="${j.title}">title</td>
+            <td th:text="${j.status} != null ? ${#strings.replace(j.status,'_',' ')} : '-'">status</td>
+            <td class="num" th:text="${j.applications}">0</td>
+            <td class="num" th:text="${j.avgScore} ?: '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- =========================================================================
+     TEAM_PERFORMANCE
+     ========================================================================= -->
+<div th:fragment="team-performance" th:remove="tag">
+    <h2>Team</h2>
+    <p><span th:text="${d.teamSize}">0</span><span> people can post jobs and manage candidates in this company.</span></p>
+    <p class="empty" th:if="${d.members.isEmpty()}">No recruiting staff on record.</p>
+    <table class="data" th:unless="${d.members.isEmpty()}">
+        <tr>
+            <th>Name</th><th>Role</th><th class="num">Postings</th>
+            <th class="num">Published</th><th class="num">Applications</th><th class="num">Avg score</th>
+        </tr>
+        <tr th:each="m,i : ${d.members}" th:class="${i.odd} ? 'alt' : ''">
+            <td>
+                <span th:text="${m.name}">name</span><br/>
+                <span class="muted small" th:text="${m.email}">email</span>
+            </td>
+            <td th:text="${#strings.replace(m.role,'_',' ')}">role</td>
+            <td class="num" th:text="${m.totalJobs}">0</td>
+            <td class="num" th:text="${m.publishedJobs}">0</td>
+            <td class="num" th:text="${m.totalApplications}">0</td>
+            <td class="num" th:text="${m.averageMatchScore} ?: '-'">-</td>
+        </tr>
+    </table>
+    <p class="muted small">
+        Volume alone does not indicate performance; read it alongside the match-score
+        column and the roles each person was assigned.
+    </p>
+</div>
+
+<!-- =========================================================================
+     JOB_POSTING_PERFORMANCE
+     ========================================================================= -->
+<div th:fragment="job-performance" th:remove="tag">
+    <h2>Posting inventory</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Total</div><div class="kpi-v" th:text="${d.totalJobs}">0</div></td>
+            <td><div class="kpi-l">Published</div><div class="kpi-v" th:text="${d.publishedJobs}">0</div></td>
+            <td><div class="kpi-l">Draft</div><div class="kpi-v" th:text="${d.draftJobs}">0</div></td>
+            <td><div class="kpi-l">Awaiting approval</div><div class="kpi-v" th:text="${d.pendingApprovalJobs}">0</div></td>
+        </tr>
+    </table>
+    <h2>Applications and score by posting</h2>
+    <div th:replace="~{reports/sections :: jobtable(${d.jobPerformance})}"></div>
+</div>
+
+<!-- =========================================================================
+     RECRUITER_ACTIVITY
+     ========================================================================= -->
+<div th:fragment="recruiter-activity" th:remove="tag">
+    <h2>Your activity</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Postings created</div><div class="kpi-v" th:text="${d.totalJobs}">0</div></td>
+            <td><div class="kpi-l">Published</div><div class="kpi-v" th:text="${d.publishedJobs}">0</div></td>
+            <td><div class="kpi-l">Applications</div><div class="kpi-v" th:text="${d.totalApplications}">0</div></td>
+            <td><div class="kpi-l">Avg match score</div><div class="kpi-v" th:text="${d.averageMatchScore} ?: '-'">-</div></td>
+        </tr>
+    </table>
+
+    <h2>Pipeline of your candidates</h2>
+    <div th:replace="~{reports/sections :: bars(${d.pipeline})}"></div>
+
+    <h2>Match score distribution</h2>
+    <div th:replace="~{reports/sections :: bars(${d.scoreDistribution})}"></div>
+
+    <h2>Your job postings</h2>
+    <div th:replace="~{reports/sections :: jobtable(${d.jobPerformance})}"></div>
+</div>
+
+<!-- =========================================================================
+     CANDIDATE_SHORTLIST
+     ========================================================================= -->
+<div th:fragment="candidate-shortlist" th:remove="tag">
+    <h2>Posting</h2>
+    <table class="meta">
+        <tr>
+            <td class="k">Job title</td><td th:text="${d.jobTitle}">title</td>
+            <td class="k">Status</td><td th:text="${#strings.replace(d.jobStatus,'_',' ')}">status</td>
+        </tr>
+        <tr>
+            <td class="k">Location</td><td th:text="${d.jobLocation} ?: '-'">loc</td>
+            <td class="k">Deadline</td>
+            <td th:text="${d.jobDeadline != null} ? ${#temporals.format(d.jobDeadline,'dd MMM yyyy')} : '-'">dl</td>
+        </tr>
+    </table>
+
+    <h2>Ranked candidates (<span th:text="${d.candidateCount}">0</span>)</h2>
+    <p class="empty" th:if="${d.candidates.isEmpty()}">No applications received for this posting.</p>
+    <table class="data" th:unless="${d.candidates.isEmpty()}">
+        <tr>
+            <th>#</th><th>Candidate</th><th>Stage</th>
+            <th class="num">Match</th><th class="num">Skills</th>
+            <th class="num">Years</th><th>Education</th><th>Review</th>
+        </tr>
+        <tr th:each="c,i : ${d.candidates}" th:class="${i.odd} ? 'alt' : ''">
+            <td class="num" th:text="${i.count}">1</td>
+            <td>
+                <span th:text="${c.candidate}">name</span><br/>
+                <span class="muted small" th:text="${c.email}">email</span>
+            </td>
+            <td th:text="${#strings.replace(c.status,'_',' ')}">stage</td>
+            <td class="num" th:text="${c.matchScore} ?: '-'">-</td>
+            <td class="num" th:text="${c.skillsScore} ?: '-'">-</td>
+            <td class="num" th:text="${c.experienceYears} ?: '-'">-</td>
+            <td th:text="${c.education} ?: '-'">-</td>
+            <td th:text="${c.biasFlag} ? 'Flagged' : ''"></td>
+        </tr>
+    </table>
+    <p class="muted small">
+        Ranking is by AI match score and is a decision aid only. "Flagged" marks an
+        application the screening service recommends a human reviews before acting.
+    </p>
+</div>
+
+<!-- =========================================================================
+     CANDIDATE_APPLICATION_HISTORY
+     ========================================================================= -->
+<div th:fragment="candidate-history" th:remove="tag">
+    <h2>Your activity</h2>
+    <table class="kpis">
+        <tr>
+            <td><div class="kpi-l">Applications</div><div class="kpi-v" th:text="${d.totalApplications}">0</div></td>
+            <td><div class="kpi-l">Interviews</div><div class="kpi-v" th:text="${d.interviews}">0</div></td>
+            <td><div class="kpi-l">Offers</div><div class="kpi-v" th:text="${d.offers}">0</div></td>
+            <td><div class="kpi-l">Avg match score</div><div class="kpi-v" th:text="${d.averageMatchScore} ?: '-'">-</div></td>
+        </tr>
+    </table>
+
+    <h2>Where your applications stand</h2>
+    <div th:replace="~{reports/sections :: bars(${d.statusBreakdown})}"></div>
+
+    <h2>Your applications</h2>
+    <p class="empty" th:if="${d.applications.isEmpty()}">You have not applied to any roles yet.</p>
+    <table class="data" th:unless="${d.applications.isEmpty()}">
+        <tr><th>Role</th><th>Company</th><th>Applied</th><th>Stage</th><th class="num">Match</th></tr>
+        <tr th:each="a,i : ${d.applications}" th:class="${i.odd} ? 'alt' : ''">
+            <td th:text="${a.jobTitle}">role</td>
+            <td th:text="${a.company}">company</td>
+            <td th:text="${#temporals.format(a.appliedAt,'dd MMM yyyy')}">date</td>
+            <td th:text="${#strings.replace(a.status,'_',' ')}">stage</td>
+            <td class="num" th:text="${a.matchScore} ?: '-'">-</td>
+        </tr>
+    </table>
+
+    <h2>Match score distribution</h2>
+    <div th:replace="~{reports/sections :: bars(${d.scoreDistribution})}"></div>
+</div>
+
+</body>
+</html>

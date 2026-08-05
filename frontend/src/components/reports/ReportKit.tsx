@@ -3,7 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   AreaChart, Area, PieChart, Pie, CartesianGrid, Legend,
 } from 'recharts';
-import { Printer, Download } from 'lucide-react';
+import { Printer, Download, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ImageWithFallback } from '../ui';
 import { humanize } from '../../lib/format';
 
@@ -208,5 +209,17 @@ export function ExportCsvButton({ onClick }: { onClick: () => void }) {
     <button onClick={onClick} className="btn-secondary">
       <Download className="h-4 w-4" /> Export CSV
     </button>
+  );
+}
+
+/**
+ * Sends the user to the report generator. This replaces the old print-the-page button:
+ * a browser print is a screenshot of a dashboard, not a report anyone can sign off.
+ */
+export function GeneratePdfLink() {
+  return (
+    <Link to="/reports" className="btn-secondary print:hidden">
+      <FileText className="mr-1.5 h-4 w-4" /> Generate PDF report
+    </Link>
   );
 }

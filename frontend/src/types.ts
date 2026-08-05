@@ -333,3 +333,63 @@ export interface AuditLog {
   ipAddress?: string;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------- reporting
+
+export type ReportScope = 'PLATFORM' | 'COMPANY' | 'PERSONAL';
+
+export type ReportStatus =
+  | 'QUEUED' | 'GENERATING' | 'FAILED'
+  | 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+
+export type ReportApprovalAction =
+  | 'GENERATED' | 'SUBMITTED_FOR_APPROVAL' | 'APPROVED' | 'REJECTED';
+
+export interface ReportTypeOption {
+  type: string;
+  title: string;
+  description: string;
+  scope: ReportScope;
+  requiresApproval: boolean;
+  requiresJob: boolean;
+}
+
+export interface ReportSummary {
+  id: string;
+  referenceNo: string;
+  type: string;
+  title: string;
+  scope: ReportScope;
+  status: ReportStatus;
+  companyName?: string;
+  generatedByName: string;
+  generatedByRole: string;
+  generatedAt?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  pageCount?: number;
+  fileSizeBytes?: number;
+  requiresApproval: boolean;
+  failureReason?: string;
+  createdAt?: string;
+}
+
+export interface ReportApprovalEntry {
+  action: ReportApprovalAction;
+  actorName: string;
+  actorRole: string;
+  note?: string;
+  at: string;
+}
+
+export interface ReportDetail {
+  summary: ReportSummary;
+  description: string;
+  periodStart?: string;
+  periodEnd?: string;
+  parameters?: Record<string, unknown>;
+  checksum?: string;
+  trail: ReportApprovalEntry[];
+  canSubmitForApproval: boolean;
+  canDecide: boolean;
+}

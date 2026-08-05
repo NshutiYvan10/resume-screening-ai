@@ -6,7 +6,7 @@ import { PageLoader, EmptyState } from '../../components/ui';
 import { humanize } from '../../lib/format';
 import {
   ReportHeader, ReportSection, BreakdownDonut, PipelineFunnel, TrendChart,
-  PrintButton, ExportCsvButton, downloadCsv,
+  downloadCsv, ExportCsvButton, GeneratePdfLink,
 } from '../../components/reports/ReportKit';
 
 interface PlatformAnalytics {
@@ -65,7 +65,7 @@ export default function AdminReports() {
       <ReportHeader
         title="Platform analytics"
         description="Usage, growth and screening health across every company on ResumeAI"
-        action={<><ExportCsvButton onClick={exportSummary} /><PrintButton /></>}
+        action={<GeneratePdfLink />}
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

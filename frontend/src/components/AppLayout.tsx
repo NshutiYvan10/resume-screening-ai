@@ -1,8 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase,
-  ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle,
+  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle, FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -19,32 +18,36 @@ const NAV: Record<Role, NavItem[]> = {
     { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/admin/companies', label: 'Companies', icon: <Building2 className="h-5 w-5" /> },
     { to: '/admin/users', label: 'Users', icon: <Users className="h-5 w-5" /> },
-    { to: '/admin/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/admin/reports', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/admin/audit', label: 'Audit Trail', icon: <ShieldCheck className="h-5 w-5" /> },
     { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
+    { to: '/reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
   ],
   COMPANY_ADMIN: [
     { to: '/company', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/company/approvals', label: 'Approvals', icon: <ClipboardCheck className="h-5 w-5" /> },
     { to: '/company/jobs', label: 'Jobs', icon: <Briefcase className="h-5 w-5" /> },
     { to: '/company/candidates', label: 'Candidates', icon: <ClipboardList className="h-5 w-5" /> },
-    { to: '/company/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/company/reports', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/company/team', label: 'Team', icon: <Users className="h-5 w-5" /> },
     { to: '/company/profile', label: 'Company Profile', icon: <Building2 className="h-5 w-5" /> },
     { to: '/company/audit', label: 'Audit Trail', icon: <ShieldCheck className="h-5 w-5" /> },
     { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
+    { to: '/reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
   ],
   RECRUITER: [
     { to: '/company', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { to: '/company/jobs', label: 'Jobs', icon: <Briefcase className="h-5 w-5" /> },
-    { to: '/company/reports', label: 'Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/company/reports', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
+    { to: '/reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
   ],
   CANDIDATE: [
     { to: '/candidate', label: 'Browse Jobs', icon: <Search className="h-5 w-5" /> },
     { to: '/candidate/applications', label: 'My Applications', icon: <ClipboardList className="h-5 w-5" /> },
-    { to: '/candidate/reports', label: 'My Reports', icon: <BarChart3 className="h-5 w-5" /> },
+    { to: '/candidate/reports', label: 'My Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
+    { to: '/reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
   ],
 };
 
