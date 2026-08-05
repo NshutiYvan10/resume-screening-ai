@@ -2,6 +2,8 @@ package com.resumeai.service;
 
 import com.resumeai.common.exception.ApiException;
 import com.resumeai.domain.Application;
+import com.resumeai.domain.CandidateDocument;
+import com.resumeai.domain.CoverLetterTemplate;
 import com.resumeai.domain.Interview;
 import com.resumeai.domain.Job;
 import com.resumeai.domain.Offer;
@@ -13,6 +15,8 @@ import com.resumeai.dto.CommonDtos.PageResponse;
 import com.resumeai.dto.PipelineDtos.*;
 import com.resumeai.dto.ProfileDtos;
 import com.resumeai.repository.ApplicationRepository;
+import com.resumeai.repository.CandidateDocumentRepository;
+import com.resumeai.repository.CoverLetterTemplateRepository;
 import com.resumeai.repository.InterviewFeedbackRepository;
 import com.resumeai.repository.InterviewRepository;
 import com.resumeai.repository.JobRepository;
@@ -77,12 +81,15 @@ public class ApplicationService {
     private final ScreeningService screeningService;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final CandidateDocumentRepository candidateDocumentRepository;
+    private final CoverLetterTemplateRepository coverLetterTemplateRepository;
     private final ApplicationEventService eventService;
 
     // ---------------------------------------------------------- candidate
 
     @Transactional
-    public ApplicationResponse apply(UUID jobId, MultipartFile resume, String coverLetter) {
+    public ApplicationResponse apply(UUID jobId, MultipartFile resume, String coverLetter,
+                                     UUID sourceDocumentId, UUID sourceCoverLetterId) {
         UserPrincipal actor = SecurityUtils.requireCurrentUser();
         if (actor.getRole() != Role.CANDIDATE) {
             throw ApiException.forbidden("Only candidates can apply for jobs");
@@ -96,8 +103,12 @@ public class ApplicationService {
         if (job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now())) {
             throw ApiException.badRequest("The application deadline for this job has passed");
         }
-        if (resume == null || resume.isEmpty()) {
-            throw ApiException.badRequest("A resume file is required");
+        boolean uploaded = resume != null && !resume.isEmpty();
+        if (uploaded && sourceDocumentId != null) {
+            throw ApiException.badRequest("Choose either a saved resume or a new upload, not both");
+        }
+        if (!uploaded && sourceDocumentId == null) {
+            throw ApiException.badRequest("Select a saved resume or upload a new one");
         }
 
         // A candidate gets one application per job. If they previously withdrew, they may
@@ -110,7 +121,45 @@ public class ApplicationService {
         }
 
         User candidate = userRepository.getReferenceById(actor.getId());
-        String storedPath = fileStorageService.storeResume(resume, job.getCompany().getId());
+        // The application takes its OWN copy of the resume. A library document must never be
+        // referenced directly: screening scores this exact file and reports cite the outcome,
+        // so a later rename/replace/delete in the library must not rewrite that evidence.
+        CandidateDocument sourceDocument = null;
+        String storedPath;
+        String resumeFileName;
+        String resumeContentType;
+        if (uploaded) {
+            storedPath = fileStorageService.storeResume(resume, job.getCompany().getId());
+            resumeFileName = resume.getOriginalFilename();
+            resumeContentType = resume.getContentType();
+        } else {
+            sourceDocument = candidateDocumentRepository.findById(sourceDocumentId)
+                    .orElseThrow(() -> ApiException.notFound("That saved resume no longer exists"));
+            if (!sourceDocument.getUser().getId().equals(actor.getId())) {
+                throw ApiException.forbidden("That resume belongs to someone else");
+            }
+            storedPath = fileStorageService.copyTo(sourceDocument.getStoredPath(), "resumes",
+                    job.getCompany().getId());
+            resumeFileName = sourceDocument.getFileName();
+            resumeContentType = sourceDocument.getContentType();
+        }
+
+        // Same rule for the cover letter: the template's text is copied in, so editing the
+        // template afterwards never changes what was actually submitted.
+        CoverLetterTemplate sourceCoverLetter = null;
+        String coverLetterText = coverLetter;
+        if (sourceCoverLetterId != null) {
+            if (coverLetter != null && !coverLetter.isBlank()) {
+                throw ApiException.badRequest(
+                        "Choose either a saved cover letter or write a new one, not both");
+            }
+            sourceCoverLetter = coverLetterTemplateRepository.findById(sourceCoverLetterId)
+                    .orElseThrow(() -> ApiException.notFound("That saved cover letter no longer exists"));
+            if (!sourceCoverLetter.getUser().getId().equals(actor.getId())) {
+                throw ApiException.forbidden("That cover letter belongs to someone else");
+            }
+            coverLetterText = sourceCoverLetter.getBody();
+        }
 
         Application application;
         boolean reapplied = existing != null;
@@ -119,10 +168,14 @@ public class ApplicationService {
         String previousResumePath = reapplied ? existing.getResumeStoredPath() : null;
         if (reapplied) {
             // reactivate the withdrawn application in place (preserves one-per-job uniqueness)
-            existing.setCoverLetter(coverLetter);
-            existing.setResumeFileName(resume.getOriginalFilename());
+            existing.setCoverLetter(coverLetterText);
+            existing.setResumeFileName(resumeFileName);
             existing.setResumeStoredPath(storedPath);
-            existing.setResumeContentType(resume.getContentType());
+            existing.setResumeContentType(resumeContentType);
+            // assigned unconditionally: switching back to a one-off upload must clear the
+            // old provenance rather than leave it claiming a library document was used
+            existing.setSourceDocument(sourceDocument);
+            existing.setSourceCoverLetter(sourceCoverLetter);
             existing.setStatus(ApplicationStatus.SUBMITTED);
             existing.setRecruiterNote(null);
             existing.setStatusUpdatedBy(null);
@@ -134,10 +187,12 @@ public class ApplicationService {
             application = Application.builder()
                     .job(job)
                     .candidate(candidate)
-                    .coverLetter(coverLetter)
-                    .resumeFileName(resume.getOriginalFilename())
+                    .coverLetter(coverLetterText)
+                    .resumeFileName(resumeFileName)
                     .resumeStoredPath(storedPath)
-                    .resumeContentType(resume.getContentType())
+                    .resumeContentType(resumeContentType)
+                    .sourceDocument(sourceDocument)
+                    .sourceCoverLetter(sourceCoverLetter)
                     .build();
             ScreeningResult screening = ScreeningResult.builder()
                     .application(application)

@@ -3,6 +3,7 @@ package com.resumeai.common.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -58,6 +59,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(HttpStatus.FORBIDDEN, "You do not have permission to perform this action"));
+    }
+
+    /**
+     * A missing or wrong Content-Type is the client's mistake, not a server fault. Without
+     * this it falls through to the generic handler and reports 500, which sends people
+     * hunting for a backend bug that does not exist.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaType(HttpMediaTypeNotSupportedException ex) {
+        String expected = ex.getSupportedMediaTypes().isEmpty()
+                ? "a different content type"
+                : ex.getSupportedMediaTypes().get(0).toString();
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ErrorResponse.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "This endpoint expects " + expected));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

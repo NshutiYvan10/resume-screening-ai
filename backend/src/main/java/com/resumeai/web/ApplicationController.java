@@ -34,10 +34,15 @@ public class ApplicationController {
 
     @PostMapping(value = "/jobs/{jobId}/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CANDIDATE')")
-    public ApplicationResponse apply(@PathVariable UUID jobId,
-                                     @RequestParam("resume") MultipartFile resume,
-                                     @RequestParam(value = "coverLetter", required = false) String coverLetter) {
-        return applicationService.apply(jobId, resume, coverLetter);
+    public ApplicationResponse apply(
+            @PathVariable UUID jobId,
+            // resume is optional now: a candidate may instead pass sourceDocumentId to
+            // apply with a résumé already saved in their library
+            @RequestParam(value = "resume", required = false) MultipartFile resume,
+            @RequestParam(value = "coverLetter", required = false) String coverLetter,
+            @RequestParam(value = "sourceDocumentId", required = false) UUID sourceDocumentId,
+            @RequestParam(value = "sourceCoverLetterId", required = false) UUID sourceCoverLetterId) {
+        return applicationService.apply(jobId, resume, coverLetter, sourceDocumentId, sourceCoverLetterId);
     }
 
     @GetMapping("/my")
