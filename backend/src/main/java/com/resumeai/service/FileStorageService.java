@@ -25,6 +25,7 @@ public class FileStorageService {
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "txt");
     // company images are validated by content (see sniffImageExtension), not by filename
     private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final long MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
     private final Path root;
 
@@ -260,6 +261,89 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store the generated report");
+        }
+    }
+
+    /** A stored library document: everything the row needs to describe the file. */
+    public record StoredDocument(String path, String checksum, long sizeBytes, String contentType) {
+    }
+
+    /**
+     * Store a résumé in a candidate's document library under
+     * storage-root/candidate-documents/{userId}/.
+     *
+     * <p>Separate from {@link #storeResume} because a library belongs to the candidate,
+     * not to a company - candidates have no company, so the company-partitioned résumé
+     * path cannot hold these. The checksum lets an identical re-upload be recognised.
+     */
+    public StoredDocument storeCandidateDocument(MultipartFile file, UUID userId) {
+        if (file == null || file.isEmpty()) {
+            throw ApiException.badRequest("A document file is required");
+        }
+        if (file.getSize() > MAX_DOCUMENT_BYTES) {
+            throw ApiException.badRequest("Document exceeds the maximum size of 10MB");
+        }
+        String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "document";
+        String ext = extensionOf(original);
+        if (!ALLOWED_EXTENSIONS.contains(ext)) {
+            throw ApiException.badRequest("Unsupported document format ." + ext
+                    + " - allowed formats: PDF, DOCX, TXT");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to read the uploaded document");
+        }
+        try {
+            Path dir = root.resolve("candidate-documents").resolve(userId.toString());
+            Files.createDirectories(dir);
+            Path target = dir.resolve(UUID.randomUUID() + "." + ext);
+            Files.write(target, bytes);
+            return new StoredDocument(toRelativeKey(target), sha256(bytes), bytes.length,
+                    file.getContentType());
+        } catch (IOException e) {
+            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to store the document");
+        }
+    }
+
+    /**
+     * Copy a stored file to a new key under the same root. Used when applying: the
+     * application takes its own immutable copy of the library document, so editing or
+     * deleting the library entry later cannot rewrite screening evidence.
+     */
+    public String copyTo(String sourceRelativePath, String targetPrefix, UUID scopeId) {
+        Path source = resolve(sourceRelativePath);
+        if (!Files.exists(source)) {
+            throw ApiException.notFound("That document is no longer available");
+        }
+        String name = source.getFileName().toString();
+        String ext = extensionOf(name);
+        try {
+            Path dir = root.resolve(targetPrefix).resolve(scopeId.toString());
+            Files.createDirectories(dir);
+            Path target = dir.resolve(UUID.randomUUID() + (ext.isEmpty() ? "" : "." + ext));
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            return toRelativeKey(target);
+        } catch (IOException e) {
+            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to attach the document to the application");
+        }
+    }
+
+    /** Hex SHA-256, matching the checksum format used for generated reports. */
+    public static String sha256(byte[] bytes) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 

@@ -73,6 +73,20 @@ public class Application {
 
     // Set on insert by @CreationTimestamp; also refreshed explicitly when a
     // withdrawn application is re-submitted, so it must remain updatable.
+    /**
+     * Which saved library document this application was created from, for provenance only.
+     * Nullable (one-off uploads have none) and ON DELETE SET NULL: the application holds
+     * its own copy of the bytes, so deleting the library entry must not damage it.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_document_id")
+    private CandidateDocument sourceDocument;
+
+    /** Which saved cover-letter template the text was copied from. Provenance only. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_cover_letter_id")
+    private CoverLetterTemplate sourceCoverLetter;
+
     @CreationTimestamp
     @Column(name = "applied_at", nullable = false)
     private Instant appliedAt;
