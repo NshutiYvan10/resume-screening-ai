@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
-import { Field, Modal, Spinner, StatusPill } from '../ui';
+import { Avatar, Field, Modal, Spinner, StatusPill } from '../ui';
 import { formatDateTime, humanize } from '../../lib/format';
 import type {
   FeedbackRecommendation, Interview, InterviewType, User,
@@ -157,6 +157,7 @@ export default function InterviewsCard({
                   return (
                     <div key={p.userId} className="rounded-md bg-slate-50 px-3 py-2">
                       <div className="flex items-center gap-2 text-sm">
+                        <Avatar name={p.name} photoUrl={p.photoUrl ?? feedback?.interviewerPhotoUrl} size="xs" />
                         <span className="font-medium text-slate-700">{p.name}</span>
                         {feedback ? (
                           feedback.hidden ? (
@@ -281,6 +282,7 @@ export default function InterviewsCard({
                     checked={form.panelUserIds.includes(u.id)}
                     onChange={() => togglePanelist(u.id)}
                   />
+                  <Avatar name={u.fullName} photoUrl={u.photoUrl} size="xs" />
                   <span className="text-slate-700">{u.fullName}</span>
                   <span className="text-xs text-slate-400">{humanize(u.role)}</span>
                 </label>

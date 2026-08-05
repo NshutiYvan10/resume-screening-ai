@@ -8,7 +8,7 @@ import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import PageHeader from '../../components/PageHeader';
 import {
-  Spinner, PageLoader, EmptyState, Pagination, StatusPill, Modal, Field,
+  Avatar, Spinner, PageLoader, EmptyState, Pagination, StatusPill, Modal, Field,
 } from '../../components/ui';
 import type {
   Page, ReportDetail, ReportStatus, ReportSummary, ReportTypeOption, Job,
@@ -381,17 +381,25 @@ function ReportRow({ report, onPreview, onDownload, onSubmit, onDecide }: {
         ) : null}
       </td>
       <td className="px-5 py-3.5">
-        <p className="text-slate-700">{report.generatedByName}</p>
-        <p className="text-xs text-slate-400">{report.generatedByRole.replace('_', ' ')}</p>
+        <div className="flex items-center gap-2">
+          <Avatar name={report.generatedByName} photoUrl={report.generatedByPhotoUrl} size="sm" />
+          <div>
+            <p className="text-slate-700">{report.generatedByName}</p>
+            <p className="text-xs text-slate-400">{report.generatedByRole.replace('_', ' ')}</p>
+          </div>
+        </div>
       </td>
       <td className="px-5 py-3.5">
         {report.approvedByName ? (
-          <>
-            <p className="inline-flex items-center text-slate-700">
-              <ShieldCheck className="mr-1 h-3.5 w-3.5 text-green-600" />{report.approvedByName}
-            </p>
-            <p className="text-xs text-slate-400">{formatWhen(report.approvedAt)}</p>
-          </>
+          <div className="flex items-center gap-2">
+            <Avatar name={report.approvedByName} photoUrl={report.approvedByPhotoUrl} size="sm" />
+            <div>
+              <p className="inline-flex items-center text-slate-700">
+                <ShieldCheck className="mr-1 h-3.5 w-3.5 text-green-600" />{report.approvedByName}
+              </p>
+              <p className="text-xs text-slate-400">{formatWhen(report.approvedAt)}</p>
+            </div>
+          </div>
         ) : (
           <span className="text-xs text-slate-400">
             {report.requiresApproval ? 'Not yet approved' : 'Not required'}

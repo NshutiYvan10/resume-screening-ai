@@ -115,6 +115,16 @@ public class FileStorageService {
      * the storage root.
      */
     public String storeCompanyImage(MultipartFile file, UUID companyId) {
+        return storeValidatedImage(file, "company-media", companyId);
+    }
+
+    /**
+     * Shared image intake for every user-supplied picture: size cap, magic-byte
+     * sniffing and a decode check, then written under {dir}/{ownerId}/ with an
+     * extension derived from the sniffed type so the served Content-Type can never
+     * contradict the bytes.
+     */
+    private String storeValidatedImage(MultipartFile file, String dir, UUID ownerId) {
         if (file == null || file.isEmpty()) {
             throw ApiException.badRequest("An image file is required");
         }
@@ -128,10 +138,10 @@ public class FileStorageService {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to read the uploaded image");
         }
-        // The filename extension is attacker/user controlled and routinely wrong (renaming
-        // a HEIC to .png is a common way to get past a file picker filter). Trust the bytes
-        // instead: an unreadable file stored as .png would be served as image/png and then
-        // silently fail to render, which looks like "the upload did nothing".
+        // The filename extension is user controlled and routinely wrong (renaming a HEIC
+        // to .png is a common way past a file-picker filter). Trust the bytes instead: an
+        // unreadable file stored as .png would be served as image/png and then silently
+        // fail to render, which looks like "the upload did nothing".
         String ext = sniffImageExtension(bytes);
         if (ext == null) {
             String detected = describeRejectedFormat(bytes);
@@ -141,22 +151,29 @@ public class FileStorageService {
                     : "That file is not a readable image - please upload a PNG, JPG or WEBP file");
         }
         if (!"webp".equals(ext) && !isDecodable(bytes)) {
-            // magic bytes were right but the rest is truncated/corrupt
             throw ApiException.badRequest("That image appears to be incomplete or corrupted - "
                     + "please re-save it and upload again");
         }
         try {
-            Path dir = root.resolve("company-media").resolve(companyId.toString());
-            Files.createDirectories(dir);
-            // stored extension comes from the sniffed type, so the Content-Type that
-            // MediaController derives from it always matches the real bytes
-            Path target = dir.resolve(UUID.randomUUID() + "." + ext);
-            Files.write(target, bytes);
-            return toRelativeKey(target);
+            Path target = root.resolve(dir).resolve(ownerId.toString());
+            Files.createDirectories(target);
+            Path file2 = target.resolve(UUID.randomUUID() + "." + ext);
+            Files.write(file2, bytes);
+            return toRelativeKey(file2);
         } catch (IOException e) {
             throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to store image file");
         }
+    }
+
+    /**
+     * Store a user's profile photo under storage-root/user-media/{userId}/.
+     *
+     * <p>Partitioned by user rather than company because candidates have no company,
+     * so the company-media layout cannot hold their avatars.
+     */
+    public String storeUserImage(MultipartFile file, UUID userId) {
+        return storeValidatedImage(file, "user-media", userId);
     }
 
     /** Image type implied by the magic bytes, or null if these bytes are not a supported image. */

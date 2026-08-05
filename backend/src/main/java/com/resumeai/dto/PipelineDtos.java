@@ -61,13 +61,14 @@ public final class PipelineDtos {
 
     // ------------------------------------------------------------ responses
 
-    public record PanelistResponse(UUID userId, String name, boolean feedbackSubmitted) {
+    public record PanelistResponse(UUID userId, String name, String photoUrl, boolean feedbackSubmitted) {
     }
 
     public record FeedbackResponse(
             UUID id,
             UUID interviewerId,
             String interviewerName,
+            String interviewerPhotoUrl,
             Integer rating,
             FeedbackRecommendation recommendation,
             String strengths,
@@ -77,14 +78,18 @@ public final class PipelineDtos {
 
         public static FeedbackResponse from(InterviewFeedback f) {
             return new FeedbackResponse(f.getId(), f.getInterviewer().getId(),
-                    f.getInterviewer().getFullName(), f.getRating(), f.getRecommendation(),
+                    f.getInterviewer().getFullName(),
+                    ProfileDtos.photoUrl(f.getInterviewer().getId(), f.getInterviewer().getPhotoPath()),
+                    f.getRating(), f.getRecommendation(),
                     f.getStrengths(), f.getConcerns(), f.getSubmittedAt(), false);
         }
 
         /** Placeholder shown to panelists who haven't submitted their own feedback yet. */
         public static FeedbackResponse hidden(InterviewFeedback f) {
             return new FeedbackResponse(f.getId(), f.getInterviewer().getId(),
-                    f.getInterviewer().getFullName(), null, null, null, null,
+                    f.getInterviewer().getFullName(),
+                    ProfileDtos.photoUrl(f.getInterviewer().getId(), f.getInterviewer().getPhotoPath()),
+                    null, null, null, null,
                     f.getSubmittedAt(), true);
         }
     }
@@ -98,6 +103,7 @@ public final class PipelineDtos {
             String notes,
             InterviewStatus status,
             String createdByName,
+            String createdByPhotoUrl,
             List<PanelistResponse> panel,
             List<FeedbackResponse> feedback,
             boolean viewerOnPanel,
@@ -113,7 +119,9 @@ public final class PipelineDtos {
             String notes,
             OfferStatus status,
             String createdByName,
+            String createdByPhotoUrl,
             String approvedByName,
+            String approvedByPhotoUrl,
             Instant approvedAt,
             Instant extendedAt,
             Instant respondedAt) {
@@ -122,7 +130,11 @@ public final class PipelineDtos {
             return new OfferResponse(o.getId(), o.getSalary(), o.getCurrency(), o.getStartDate(),
                     o.getExpiresAt(), o.getNotes(), o.getStatus(),
                     o.getCreatedBy() != null ? o.getCreatedBy().getFullName() : null,
+                    o.getCreatedBy() != null
+                            ? ProfileDtos.photoUrl(o.getCreatedBy().getId(), o.getCreatedBy().getPhotoPath()) : null,
                     o.getApprovedBy() != null ? o.getApprovedBy().getFullName() : null,
+                    o.getApprovedBy() != null
+                            ? ProfileDtos.photoUrl(o.getApprovedBy().getId(), o.getApprovedBy().getPhotoPath()) : null,
                     o.getApprovedAt(), o.getExtendedAt(), o.getRespondedAt());
         }
     }

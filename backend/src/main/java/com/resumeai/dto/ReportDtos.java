@@ -44,12 +44,17 @@ public final class ReportDtos {
 
     public record ApprovalEntry(ReportApprovalAction action,
                                 String actorName,
+                                String actorPhotoUrl,
                                 String actorRole,
                                 String note,
                                 Instant at) {
 
         public static ApprovalEntry from(ReportApproval a) {
-            return new ApprovalEntry(a.getAction(), a.getActorName(), a.getActorRole(),
+            return new ApprovalEntry(a.getAction(), a.getActorName(),
+                    a.getActor() != null
+                            ? ProfileDtos.photoUrl(a.getActor().getId(), a.getActor().getPhotoPath())
+                            : null,
+                    a.getActorRole(),
                     a.getNote(), a.getCreatedAt());
         }
     }
@@ -63,9 +68,11 @@ public final class ReportDtos {
                                 ReportStatus status,
                                 String companyName,
                                 String generatedByName,
+                                String generatedByPhotoUrl,
                                 String generatedByRole,
                                 Instant generatedAt,
                                 String approvedByName,
+                                String approvedByPhotoUrl,
                                 Instant approvedAt,
                                 Integer pageCount,
                                 Long fileSizeBytes,
@@ -77,8 +84,16 @@ public final class ReportDtos {
             return new ReportSummary(r.getId(), r.getReferenceNo(), r.getType(), r.getTitle(),
                     r.getScope(), r.getStatus(),
                     r.getCompany() != null ? r.getCompany().getName() : null,
-                    r.getGeneratedByName(), r.getGeneratedByRole(), r.getGeneratedAt(),
-                    r.getApprovedByName(), r.getApprovedAt(),
+                    r.getGeneratedByName(),
+                    r.getGeneratedBy() != null
+                            ? ProfileDtos.photoUrl(r.getGeneratedBy().getId(), r.getGeneratedBy().getPhotoPath())
+                            : null,
+                    r.getGeneratedByRole(), r.getGeneratedAt(),
+                    r.getApprovedByName(),
+                    r.getApprovedBy() != null
+                            ? ProfileDtos.photoUrl(r.getApprovedBy().getId(), r.getApprovedBy().getPhotoPath())
+                            : null,
+                    r.getApprovedAt(),
                     r.getPageCount(), r.getFileSizeBytes(),
                     ReportCatalog.require(r.getType()).requiresApproval(),
                     r.getFailureReason(), r.getCreatedAt());

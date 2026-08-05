@@ -152,3 +152,33 @@ export function Pagination({
     </div>
   );
 }
+
+/**
+ * A person, everywhere. Falls back to initials so a missing or unreadable photo still
+ * reads as a human rather than a broken image.
+ *
+ * Candidate photos are deliberately NOT rendered in screening and shortlist views -
+ * showing a face next to a hiring decision is a known bias vector, and the platform
+ * already flags bias elsewhere. Pass a photo only where identity is legitimately useful.
+ */
+export function Avatar({
+  name, photoUrl, size = 'md', className = '',
+}: {
+  name?: string;
+  photoUrl?: string | null;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  className?: string;
+}) {
+  const dims = { xs: 'h-6 w-6 text-[10px]', sm: 'h-8 w-8 text-xs', md: 'h-10 w-10 text-sm', lg: 'h-16 w-16 text-lg' }[size];
+  const initials = (name || '?')
+    .split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?';
+  return (
+    <span className={clsx('inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 font-semibold text-brand-700', dims, className)}
+          title={name}>
+      <ImageWithFallback src={photoUrl} alt={name ? `${name} profile photo` : ''}
+                        className="h-full w-full object-cover">
+        <span>{initials}</span>
+      </ImageWithFallback>
+    </span>
+  );
+}

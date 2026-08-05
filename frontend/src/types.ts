@@ -24,6 +24,10 @@ export interface User {
   companyName?: string;
   lastLoginAt?: string;
   createdAt: string;
+  photoUrl?: string;
+  jobTitle?: string;
+  /** False until the role's required profile fields are filled; drives the onboarding gate. */
+  profileComplete: boolean;
 }
 
 export interface AuthResponse {
@@ -88,6 +92,7 @@ export interface Invitation {
   companyId?: string;
   status: InvitationStatus;
   invitedByName?: string;
+  invitedByPhotoUrl?: string;
   expiresAt: string;
   acceptedAt?: string;
   createdAt: string;
@@ -130,6 +135,7 @@ export interface Job {
   publishedAt?: string;
   createdAt: string;
   createdByName?: string;
+  createdByPhotoUrl?: string;
   submittedByName?: string;
   submittedAt?: string;
   approvedByName?: string;
@@ -250,6 +256,7 @@ export type PipelineAction =
 export interface Panelist {
   userId: string;
   name: string;
+  photoUrl?: string;
   feedbackSubmitted: boolean;
 }
 
@@ -257,6 +264,7 @@ export interface InterviewFeedback {
   id: string;
   interviewerId: string;
   interviewerName: string;
+  interviewerPhotoUrl?: string;
   rating?: number;
   recommendation?: FeedbackRecommendation;
   strengths?: string;
@@ -274,6 +282,7 @@ export interface Interview {
   notes?: string;
   status: InterviewStatus;
   createdByName?: string;
+  createdByPhotoUrl?: string;
   panel: Panelist[];
   feedback: InterviewFeedback[];
   viewerOnPanel: boolean;
@@ -289,7 +298,9 @@ export interface Offer {
   notes?: string;
   status: OfferStatus;
   createdByName?: string;
+  createdByPhotoUrl?: string;
   approvedByName?: string;
+  approvedByPhotoUrl?: string;
   approvedAt?: string;
   extendedAt?: string;
   respondedAt?: string;
@@ -363,9 +374,11 @@ export interface ReportSummary {
   status: ReportStatus;
   companyName?: string;
   generatedByName: string;
+  generatedByPhotoUrl?: string;
   generatedByRole: string;
   generatedAt?: string;
   approvedByName?: string;
+  approvedByPhotoUrl?: string;
   approvedAt?: string;
   pageCount?: number;
   fileSizeBytes?: number;
@@ -377,6 +390,7 @@ export interface ReportSummary {
 export interface ReportApprovalEntry {
   action: ReportApprovalAction;
   actorName: string;
+  actorPhotoUrl?: string;
   actorRole: string;
   note?: string;
   at: string;
@@ -392,4 +406,61 @@ export interface ReportDetail {
   trail: ReportApprovalEntry[];
   canSubmitForApproval: boolean;
   canDecide: boolean;
+}
+
+// ---------------------------------------------------------------- profile
+
+export type WorkArrangement = 'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE';
+export type Availability = 'IMMEDIATE' | 'WITHIN_A_MONTH' | 'WITHIN_THREE_MONTHS' | 'NOT_LOOKING';
+
+export interface ProfileCompletion {
+  complete: boolean;
+  percentage: number;
+  missingRequired: string[];
+  missingOptional: string[];
+}
+
+export interface CandidateProfile {
+  headline?: string;
+  summary?: string;
+  workAuthorization?: string;
+  languages?: { language?: string; proficiency?: string }[];
+  skills?: string[];
+  education?: Record<string, unknown>[];
+  experience?: Record<string, unknown>[];
+  certifications?: Record<string, unknown>[];
+  portfolioUrl?: string;
+  githubUrl?: string;
+  websiteUrl?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  workArrangement?: WorkArrangement;
+  availability?: Availability;
+  noticePeriodDays?: number;
+  preferredCategories?: string[];
+  openToRelocation: boolean;
+}
+
+export interface MyProfile {
+  id: string;
+  email: string;
+  role: Role;
+  fullName: string;
+  phone?: string;
+  photoUrl?: string;
+  jobTitle?: string;
+  department?: string;
+  bio?: string;
+  location?: string;
+  timeZone?: string;
+  locale?: string;
+  linkedinUrl?: string;
+  specializations?: string[];
+  yearsExperience?: number;
+  companyName?: string;
+  candidate?: CandidateProfile | null;
+  demographicsProvided: boolean;
+  completion: ProfileCompletion;
+  profileCompletedAt?: string;
 }

@@ -40,10 +40,26 @@ public class MediaController {
     @GetMapping("/company/{companyId}/{fileName}")
     public ResponseEntity<Resource> serveCompanyMedia(@PathVariable UUID companyId,
                                                       @PathVariable String fileName) {
+        return serve("company-media", companyId, fileName);
+    }
+
+    /**
+     * Profile photos. Readable without a token so a plain {@code <img src>} works on
+     * every surface that shows a person; the path carries two random UUIDs, so a URL
+     * cannot be guessed from a user id alone. Who is *shown* a candidate's photo is
+     * decided by the DTO layer, not here.
+     */
+    @GetMapping("/user/{userId}/{fileName}")
+    public ResponseEntity<Resource> serveUserMedia(@PathVariable UUID userId,
+                                                   @PathVariable String fileName) {
+        return serve("user-media", userId, fileName);
+    }
+
+    private ResponseEntity<Resource> serve(String dir, UUID ownerId, String fileName) {
         if (fileName.contains("/") || fileName.contains("..")) {
             throw ApiException.badRequest("Invalid file name");
         }
-        Path path = fileStorageService.resolve("company-media/" + companyId + "/" + fileName);
+        Path path = fileStorageService.resolve(dir + "/" + ownerId + "/" + fileName);
         FileSystemResource resource = new FileSystemResource(path);
         if (!resource.exists()) {
             throw ApiException.notFound("File not found");

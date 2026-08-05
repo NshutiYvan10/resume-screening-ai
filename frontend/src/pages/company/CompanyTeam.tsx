@@ -5,7 +5,7 @@ import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
-import { Field, Modal, Spinner, EmptyState, StatusPill } from '../../components/ui';
+import { Avatar, Field, Modal, Spinner, EmptyState, StatusPill } from '../../components/ui';
 import { humanize, timeAgo } from '../../lib/format';
 import type { Invitation, Page, Role, User } from '../../types';
 
@@ -121,11 +121,16 @@ export default function CompanyTeam() {
                 {teamMembers.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50">
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-slate-800">
-                        {m.fullName}
-                        {m.id === user?.id && <span className="ml-2 text-xs text-slate-400">(you)</span>}
+                      <div className="flex items-center gap-3">
+                        <Avatar name={m.fullName} photoUrl={m.photoUrl} size="sm" />
+                        <div>
+                          <div className="font-medium text-slate-800">
+                            {m.fullName}
+                            {m.id === user?.id && <span className="ml-2 text-xs text-slate-400">(you)</span>}
+                          </div>
+                          <div className="text-xs text-slate-400">{m.email}</div>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-400">{m.email}</div>
                     </td>
                     <td className="px-5 py-3.5">
                       <StatusPill
@@ -180,6 +185,7 @@ export default function CompanyTeam() {
                   <th className="px-5 py-3 font-medium">Email</th>
                   <th className="px-5 py-3 font-medium">Role</th>
                   <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium">Invited by</th>
                   <th className="px-5 py-3 font-medium">Sent</th>
                   <th className="px-5 py-3"></th>
                 </tr>
@@ -191,6 +197,16 @@ export default function CompanyTeam() {
                     <td className="px-5 py-3.5">{humanize(inv.role)}</td>
                     <td className="px-5 py-3.5">
                       <StatusPill label={humanize(inv.status)} className={invStatusStyle[inv.status]} />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {inv.invitedByName ? (
+                        <span className="flex items-center gap-2 text-slate-600">
+                          <Avatar name={inv.invitedByName} photoUrl={inv.invitedByPhotoUrl} size="xs" />
+                          {inv.invitedByName}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-slate-500">{timeAgo(inv.createdAt)}</td>
                     <td className="px-5 py-3.5 text-right">

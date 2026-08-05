@@ -4,7 +4,7 @@ import { Users, Search, Ban, CheckCircle2 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import PageHeader from '../../components/PageHeader';
-import { Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
+import { Avatar, Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
 import { formatDate, humanize, timeAgo } from '../../lib/format';
 import type { Page, Role, User, UserStatus } from '../../types';
 
@@ -100,8 +100,20 @@ export default function AdminUsers() {
               {data.content.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-800">{u.fullName}</div>
-                    <div className="text-xs text-slate-400">{u.email}</div>
+                    <div className="flex items-center gap-3">
+                      {/* Staff show their photo; candidate rows stay initials-only, in line with
+                          the platform rule that a candidate's face is never rendered next to a
+                          decision about them. */}
+                      <Avatar
+                        name={u.fullName}
+                        photoUrl={u.role === 'CANDIDATE' ? undefined : u.photoUrl}
+                        size="sm"
+                      />
+                      <div>
+                        <div className="font-medium text-slate-800">{u.fullName}</div>
+                        <div className="text-xs text-slate-400">{u.email}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-5 py-3.5">
                     <StatusPill label={humanize(u.role)} className={ROLE_STYLE[u.role]} />

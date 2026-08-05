@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle, FileText,
 } from 'lucide-react';
+import { Avatar } from './ui';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
 import type { Role } from '../types';
@@ -102,9 +103,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* account block: identity + sign out (moved here from the top-right corner) */}
       <div className="border-t border-slate-800 p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/20 text-sm font-semibold text-brand-200">
-            {user.fullName.charAt(0).toUpperCase()}
-          </div>
+          <Avatar name={user.fullName} photoUrl={user.photoUrl} size="sm"
+                  className="bg-brand-500/20 text-brand-200" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{user.fullName}</p>
             <p className="truncate text-xs text-slate-400">{user.companyName || ROLE_LABEL[user.role]}</p>

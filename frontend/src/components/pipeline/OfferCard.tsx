@@ -4,7 +4,7 @@ import { BadgeDollarSign, CheckCircle2, Send, ThumbsDown, ThumbsUp, PenLine } fr
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { Field, Modal, Spinner, StatusPill } from '../ui';
+import { Avatar, Field, Modal, Spinner, StatusPill } from '../ui';
 import { formatDate, formatDateTime, humanize } from '../../lib/format';
 import type { Offer, OfferStatus } from '../../types';
 
@@ -127,14 +127,25 @@ export default function OfferCard({
             </div>
             <div>
               <p className="text-xs text-slate-400">Drafted by</p>
-              <p className="font-medium text-slate-700">{offer.createdByName || '—'}</p>
+              {offer.createdByName ? (
+                <p className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <Avatar name={offer.createdByName} photoUrl={offer.createdByPhotoUrl} size="xs" />
+                  {offer.createdByName}
+                </p>
+              ) : (
+                <p className="font-medium text-slate-700">—</p>
+              )}
             </div>
           </div>
           {offer.notes && <p className="mt-2 text-xs text-slate-500">{offer.notes}</p>}
 
           <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
             {offer.approvedByName && (
-              <p>Approved by <strong>{offer.approvedByName}</strong> · {formatDateTime(offer.approvedAt)}</p>
+              <p className="flex flex-wrap items-center gap-1.5">
+                Approved by
+                <Avatar name={offer.approvedByName} photoUrl={offer.approvedByPhotoUrl} size="xs" />
+                <strong>{offer.approvedByName}</strong> · {formatDateTime(offer.approvedAt)}
+              </p>
             )}
             {offer.extendedAt && <p>Extended to candidate · {formatDateTime(offer.extendedAt)}</p>}
             {offer.respondedAt && <p>Candidate responded · {formatDateTime(offer.respondedAt)}</p>}

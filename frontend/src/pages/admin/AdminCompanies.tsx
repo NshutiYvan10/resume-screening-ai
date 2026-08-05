@@ -4,7 +4,7 @@ import { Building2, Send, Search, MoreVertical, Ban, CheckCircle2, Mail, Clock }
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import PageHeader from '../../components/PageHeader';
-import { Field, Modal, Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
+import { Avatar, Field, Modal, Spinner, EmptyState, Pagination, StatusPill } from '../../components/ui';
 import { formatDate, timeAgo, humanize } from '../../lib/format';
 import type { CompanySummary, Invitation, Page } from '../../types';
 
@@ -226,6 +226,7 @@ export default function AdminCompanies() {
                     <th className="px-5 py-3 font-medium">Company</th>
                     <th className="px-5 py-3 font-medium">Email</th>
                     <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Invited by</th>
                     <th className="px-5 py-3 font-medium">Sent</th>
                     <th className="px-5 py-3"></th>
                   </tr>
@@ -237,6 +238,16 @@ export default function AdminCompanies() {
                       <td className="px-5 py-3.5 text-slate-600">{inv.email}</td>
                       <td className="px-5 py-3.5">
                         <StatusPill label={humanize(inv.status)} className={invStatusStyle[inv.status]} />
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {inv.invitedByName ? (
+                          <span className="flex items-center gap-2 text-slate-600">
+                            <Avatar name={inv.invitedByName} photoUrl={inv.invitedByPhotoUrl} size="xs" />
+                            {inv.invitedByName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-slate-500">
                         <span className="flex items-center gap-1">

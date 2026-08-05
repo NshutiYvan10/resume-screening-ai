@@ -6,7 +6,7 @@ import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
-import { Spinner, EmptyState, Pagination, StatusPill, Modal, Field } from '../../components/ui';
+import { Avatar, Spinner, EmptyState, Pagination, StatusPill, Modal, Field } from '../../components/ui';
 import { JOB_STATUS_STYLES, formatDate, humanize } from '../../lib/format';
 import type { Job, JobStatus, Page } from '../../types';
 
@@ -147,7 +147,12 @@ export default function CompanyJobs() {
                   <span>{humanize(job.workMode)}</span>
                   {job.location && <span>{job.location}</span>}
                   <span>Created {formatDate(job.createdAt)}</span>
-                  {job.createdByName && <span>by {job.createdByName}</span>}
+                  {job.createdByName && (
+                    <span className="flex items-center gap-1.5">
+                      by <Avatar name={job.createdByName} photoUrl={job.createdByPhotoUrl} size="xs" />
+                      {job.createdByName}
+                    </span>
+                  )}
                   {job.deadline && (
                     new Date(job.deadline) < new Date(new Date().toDateString()) ? (
                       <span className="font-semibold text-red-500">

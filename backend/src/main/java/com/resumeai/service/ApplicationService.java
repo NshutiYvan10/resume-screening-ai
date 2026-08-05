@@ -11,6 +11,7 @@ import com.resumeai.domain.enums.*;
 import com.resumeai.dto.ApplicationDtos.ApplicationResponse;
 import com.resumeai.dto.CommonDtos.PageResponse;
 import com.resumeai.dto.PipelineDtos.*;
+import com.resumeai.dto.ProfileDtos;
 import com.resumeai.repository.ApplicationRepository;
 import com.resumeai.repository.InterviewFeedbackRepository;
 import com.resumeai.repository.InterviewRepository;
@@ -512,6 +513,7 @@ public class ApplicationService {
 
         List<PanelistResponse> panel = interview.getPanel().stream()
                 .map(u -> new PanelistResponse(u.getId(), u.getFullName(),
+                        ProfileDtos.photoUrl(u.getId(), u.getPhotoPath()),
                         interview.getFeedback().stream()
                                 .anyMatch(f -> f.getInterviewer().getId().equals(u.getId()))))
                 .toList();
@@ -520,6 +522,9 @@ public class ApplicationService {
                 interview.getDurationMinutes(), interview.getType(), interview.getLocation(),
                 interview.getNotes(), interview.getStatus(),
                 interview.getCreatedBy() != null ? interview.getCreatedBy().getFullName() : null,
+                interview.getCreatedBy() != null
+                        ? ProfileDtos.photoUrl(interview.getCreatedBy().getId(),
+                                interview.getCreatedBy().getPhotoPath()) : null,
                 panel, feedback, viewerOnPanel, viewerSubmitted);
     }
 

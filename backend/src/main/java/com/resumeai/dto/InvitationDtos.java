@@ -56,6 +56,7 @@ public final class InvitationDtos {
             UUID companyId,
             InvitationStatus status,
             String invitedByName,
+            String invitedByPhotoUrl,
             Instant expiresAt,
             Instant acceptedAt,
             Instant createdAt) {
@@ -72,6 +73,9 @@ public final class InvitationDtos {
                     i.getCompany() != null ? i.getCompany().getId() : null,
                     i.getStatus(),
                     i.getInvitedBy() != null ? i.getInvitedBy().getFullName() : null,
+                    i.getInvitedBy() != null
+                            ? ProfileDtos.photoUrl(i.getInvitedBy().getId(), i.getInvitedBy().getPhotoPath())
+                            : null,
                     i.getExpiresAt(),
                     i.getAcceptedAt(),
                     i.getCreatedAt());

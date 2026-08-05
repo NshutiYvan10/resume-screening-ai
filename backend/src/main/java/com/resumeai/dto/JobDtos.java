@@ -73,6 +73,7 @@ public final class JobDtos {
             Instant publishedAt,
             Instant createdAt,
             String createdByName,
+            String createdByPhotoUrl,
             String submittedByName,
             Instant submittedAt,
             String approvedByName,
@@ -103,6 +104,9 @@ public final class JobDtos {
                     j.getPublishedAt(),
                     j.getCreatedAt(),
                     j.getCreatedBy() != null ? j.getCreatedBy().getFullName() : null,
+                    j.getCreatedBy() != null
+                            ? ProfileDtos.photoUrl(j.getCreatedBy().getId(), j.getCreatedBy().getPhotoPath())
+                            : null,
                     j.getSubmittedBy() != null ? j.getSubmittedBy().getFullName() : null,
                     j.getSubmittedAt(),
                     j.getApprovedBy() != null ? j.getApprovedBy().getFullName() : null,

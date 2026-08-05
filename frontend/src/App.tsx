@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { PageLoader } from './components/ui';
+import CompleteProfile from './pages/profile/CompleteProfile';
 import { RequireAuth, RedirectIfAuthed, homeForRole } from './components/RouteGuards';
 import AppLayout from './components/AppLayout';
 
@@ -100,6 +101,7 @@ export default function App() {
 
       {/* shared */}
       <Route path="/reports" element={<RequireAuth><Shell><ReportCenter /></Shell></RequireAuth>} />
+      <Route path="/complete-profile" element={<RequireAuth><CompleteProfile /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><Shell><Settings /></Shell></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
