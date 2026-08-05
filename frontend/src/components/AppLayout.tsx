@@ -1,7 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle, FileText,
+  LayoutDashboard, Building2, Users, ClipboardList, ClipboardCheck, Briefcase, ShieldCheck, LogOut, Menu, X, Search, BarChart3, UserCircle, FileText, FolderOpen,
 } from 'lucide-react';
 import { Avatar } from './ui';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,7 @@ const NAV: Record<Role, NavItem[]> = {
   CANDIDATE: [
     { to: '/candidate', label: 'Browse Jobs', icon: <Search className="h-5 w-5" /> },
     { to: '/candidate/applications', label: 'My Applications', icon: <ClipboardList className="h-5 w-5" /> },
+    { to: '/candidate/documents', label: 'My Documents', icon: <FolderOpen className="h-5 w-5" /> },
     { to: '/candidate/reports', label: 'My Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { to: '/settings', label: 'Profile', icon: <UserCircle className="h-5 w-5" /> },
     { to: '/reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },

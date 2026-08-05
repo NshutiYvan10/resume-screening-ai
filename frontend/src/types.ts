@@ -464,3 +464,65 @@ export interface MyProfile {
   completion: ProfileCompletion;
   profileCompletedAt?: string;
 }
+
+// ---------------------------------------------------------- document library
+
+/**
+ * A résumé saved in the candidate's library. NOT the file behind a submitted
+ * application: applying copies the bytes, so editing or deleting this leaves every
+ * screened application untouched.
+ */
+export interface SavedResume {
+  id: string;
+  label: string;
+  fileName: string;
+  contentType?: string;
+  sizeBytes?: number;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedCoverLetter {
+  id: string;
+  label: string;
+  body: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentLibrary {
+  resumes: SavedResume[];
+  coverLetters: SavedCoverLetter[];
+  resumeLimit: number;
+  coverLetterLimit: number;
+}
+
+/** Per-résumé performance, derived from screenings that actually ran. */
+export interface ResumeInsight {
+  documentId: string;
+  label: string;
+  isDefault: boolean;
+  applications: number;
+  screened: number;
+  averageMatchScore?: number | null;
+  interviews: number;
+  offers: number;
+  parseQuality?: string | null;
+  parseWarnings: string[];
+}
+
+export interface SkillCount {
+  skill: string;
+  occurrences: number;
+}
+
+export interface ResumeInsights {
+  resumes: ResumeInsight[];
+  skillGaps: SkillCount[];
+  skillStrengths: SkillCount[];
+  attributedApplications: number;
+  /** Applications submitted with a one-off upload, so attributable to no saved résumé. */
+  unattributedApplications: number;
+}

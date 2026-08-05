@@ -35,6 +35,7 @@ import CompanyReports from './pages/company/CompanyReports';
 import BrowseJobs from './pages/candidate/BrowseJobs';
 import JobDetail from './pages/candidate/JobDetail';
 import MyApplications from './pages/candidate/MyApplications';
+import ResumeManager from './pages/candidate/ResumeManager';
 import CompanyProfilePublic from './pages/candidate/CompanyProfilePublic';
 import CandidateReports from './pages/candidate/CandidateReports';
 
@@ -97,6 +98,7 @@ export default function App() {
       <Route path="/candidate/jobs/:jobId" element={<RequireAuth roles={['CANDIDATE']}><Shell><JobDetail /></Shell></RequireAuth>} />
       <Route path="/candidate/companies/:companyId" element={<RequireAuth roles={['CANDIDATE']}><Shell><CompanyProfilePublic /></Shell></RequireAuth>} />
       <Route path="/candidate/applications" element={<RequireAuth roles={['CANDIDATE']}><Shell><MyApplications /></Shell></RequireAuth>} />
+      <Route path="/candidate/documents" element={<RequireAuth roles={['CANDIDATE']}><Shell><ResumeManager /></Shell></RequireAuth>} />
       <Route path="/candidate/reports" element={<RequireAuth roles={['CANDIDATE']}><Shell><CandidateReports /></Shell></RequireAuth>} />
 
       {/* shared */}

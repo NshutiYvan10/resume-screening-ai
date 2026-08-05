@@ -1,10 +1,12 @@
 package com.resumeai.common.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -14,8 +16,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
@@ -74,6 +78,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                 .body(ErrorResponse.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                         "This endpoint expects " + expected));
+    }
+
+    /**
+     * An unparseable body - malformed JSON, or a value outside an enum - is a 400, not a
+     * server fault. The enum case is named explicitly because it is the one a client hits
+     * in practice (a stale option value), and "An unexpected error occurred" tells whoever
+     * is debugging it nothing at all.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        String message = "The request body could not be read";
+        if (ex.getCause() instanceof InvalidFormatException ife && ife.getTargetType() != null
+                && ife.getTargetType().isEnum()) {
+            String field = ife.getPath().isEmpty() ? null
+                    : ife.getPath().get(ife.getPath().size() - 1).getFieldName();
+            String allowed = Arrays.stream(ife.getTargetType().getEnumConstants())
+                    .map(Object::toString).collect(Collectors.joining(", "));
+            message = "'" + ife.getValue() + "' is not a valid value"
+                    + (field != null ? " for " + field : "") + " - expected one of: " + allowed;
+        }
+        return ResponseEntity.badRequest().body(ErrorResponse.of(HttpStatus.BAD_REQUEST, message));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

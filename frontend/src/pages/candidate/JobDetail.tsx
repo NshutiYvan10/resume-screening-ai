@@ -1,17 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, MapPin, Building2, Briefcase, GraduationCap, Calendar, Upload, FileText, X,
+  ArrowLeft, MapPin, Building2, Briefcase, GraduationCap, Calendar,
   CheckCircle2, RotateCcw,
 } from 'lucide-react';
 import { api, apiErrorMessage } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useMyApplicationsMap } from '../../lib/useMyApplications';
-import { PageLoader, Field, Modal, Spinner, StatusPill } from '../../components/ui';
+import { useDocumentLibrary, LIBRARY_KEY } from '../../lib/useDocuments';
+import ApplyDocuments, { ApplyChoice, initialChoice } from '../../components/candidate/ApplyDocuments';
+import { PageLoader, Modal, Spinner, StatusPill } from '../../components/ui';
 import { APPLICATION_STATUS_STYLES, formatSalary, formatDate, humanize } from '../../lib/format';
-import type { PublicJob } from '../../types';
+import type { PublicJob, SavedResume } from '../../types';
 
 export default function JobDetail() {
   const { jobId } = useParams();
@@ -19,14 +21,27 @@ export default function JobDetail() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [applyOpen, setApplyOpen] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [coverLetter, setCoverLetter] = useState('');
+  const [choice, setChoice] = useState<ApplyChoice>(() => initialChoice());
   const [submitting, setSubmitting] = useState(false);
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['public-job', jobId],
     queryFn: async () => (await api.get<PublicJob>(`/jobs/public/${jobId}`)).data,
   });
+
+  const { data: library } = useDocumentLibrary();
+
+  // The library may still be in flight when the modal is opened, which would otherwise
+  // show upload-only to a candidate who has saved résumés. Seed the moment it lands, but
+  // never over a choice already in progress.
+  useEffect(() => {
+    if (library) setChoice((c) => (c.documentId || c.file ? c : initialChoice(library)));
+  }, [library]);
+
+  const openApply = () => {
+    setChoice(initialChoice(library));
+    setApplyOpen(true);
+  };
 
   const { data: appliedMap } = useMyApplicationsMap();
   const applied = jobId ? appliedMap?.[jobId] : undefined;
@@ -36,15 +51,47 @@ export default function JobDetail() {
 
   const submitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
-      toast('Please attach your resume', 'error');
+    const savedResume = choice.resumeMode === 'saved' ? choice.documentId : null;
+    if (!savedResume && !choice.file) {
+      toast('Choose a saved résumé or upload a new one', 'error');
       return;
     }
     setSubmitting(true);
-    const formData = new FormData();
-    formData.append('resume', file);
-    if (coverLetter.trim()) formData.append('coverLetter', coverLetter.trim());
     try {
+      let documentId = savedResume;
+
+      // A new upload the candidate asked to keep: file it in the library first and apply
+      // from that entry, so the two can't drift apart. Filing is only a convenience, so
+      // if it fails the application still goes out with the file attached directly.
+      if (!documentId && choice.alsoSave && choice.file) {
+        try {
+          const fd = new FormData();
+          fd.append('file', choice.file);
+          const { data } = await api.post<SavedResume>('/documents/resumes', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          documentId = data.id;
+          queryClient.invalidateQueries({ queryKey: LIBRARY_KEY });
+        } catch {
+          // library full, or the file was rejected there — carry on with a plain upload
+        }
+      }
+
+      const formData = new FormData();
+      if (documentId) formData.append('sourceDocumentId', documentId);
+      else if (choice.file) formData.append('resume', choice.file);
+
+      const text = choice.letterMode === 'none' ? '' : choice.letterText.trim();
+      const template = choice.letterMode === 'saved'
+        ? library?.coverLetters.find((c) => c.id === choice.coverLetterId)
+        : undefined;
+      // untouched template: record where the text came from. Edited: send what they wrote.
+      if (template && text === template.body.trim()) {
+        formData.append('sourceCoverLetterId', template.id);
+      } else if (text) {
+        formData.append('coverLetter', text);
+      }
+
       await api.post(`/applications/jobs/${jobId}/apply`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -174,7 +221,7 @@ export default function JobDetail() {
               ) : (
                 <span />
               )}
-              <button className="btn-primary shrink-0" onClick={() => setApplyOpen(true)}>
+              <button className="btn-primary shrink-0" onClick={openApply}>
                 {isReapply ? 'Re-apply for this position' : 'Apply for this position'}
               </button>
             </div>
@@ -182,39 +229,10 @@ export default function JobDetail() {
         </div>
       </div>
 
-      <Modal open={applyOpen} onClose={() => setApplyOpen(false)} title={`Apply — ${job.title}`}>
+      <Modal open={applyOpen} onClose={() => setApplyOpen(false)} title={`Apply — ${job.title}`}
+             maxWidth="max-w-xl">
         <form onSubmit={submitApplication} className="space-y-4">
-          <Field label="Resume" required hint="PDF, DOCX or TXT · max 10MB">
-            {file ? (
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <span className="flex items-center gap-2 text-sm text-slate-700">
-                  <FileText className="h-4 w-4 text-brand-600" /> {file.name}
-                </span>
-                <button type="button" onClick={() => setFile(null)} className="text-slate-400 hover:text-red-500">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 py-8 hover:border-brand-400 hover:bg-brand-50/30">
-                <Upload className="h-6 w-6 text-slate-400" />
-                <span className="mt-2 text-sm text-slate-500">Click to upload your resume</span>
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.txt"
-                  className="hidden"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-              </label>
-            )}
-          </Field>
-          <Field label="Cover letter" hint="Optional">
-            <textarea
-              className="input min-h-28"
-              value={coverLetter}
-              onChange={(e) => setCoverLetter(e.target.value)}
-              placeholder="Tell the hiring team why you're a great fit…"
-            />
-          </Field>
+          <ApplyDocuments library={library} value={choice} onChange={setChoice} />
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => setApplyOpen(false)}>
               Cancel

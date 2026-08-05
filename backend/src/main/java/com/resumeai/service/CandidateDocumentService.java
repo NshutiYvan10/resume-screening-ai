@@ -22,7 +22,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +46,10 @@ public class CandidateDocumentService {
     /** Generous enough for real use, low enough that storage cannot run away. */
     static final int MAX_RESUMES = 10;
     static final int MAX_COVER_LETTERS = 10;
+
+    /** How many recurring skills the insights panel shows in each direction. */
+    private static final int TOP_SKILLS = 8;
+    private static final long[] EMPTY_PAIR = {0L, 0L};
 
     private final CandidateDocumentRepository documentRepository;
     private final CoverLetterTemplateRepository coverLetterRepository;
@@ -218,6 +226,80 @@ public class CandidateDocumentService {
                     .findFirst().ifPresent(next -> next.setDefault(true));
         }
         auditService.log("COVER_LETTER_DELETED", "COVER_LETTER", id.toString(), Map.of());
+    }
+
+    // ------------------------------------------------------------- insights
+
+    /**
+     * How each saved résumé has actually performed, plus the skill gaps that keep
+     * recurring across screenings.
+     *
+     * <p>Everything is derived from screenings that really ran. A résumé that has never
+     * been used reports zeros and a null score - there is deliberately no invented
+     * "résumé rating", because a number a candidate cannot trace back to a real screening
+     * is worse than no number at all.
+     */
+    @Transactional(readOnly = true)
+    public InsightsResponse insights() {
+        UUID userId = candidateId();
+
+        Map<UUID, long[]> usage = new HashMap<>();          // documentId -> [applications, screened]
+        Map<UUID, BigDecimal> averages = new HashMap<>();
+        for (Object[] row : documentRepository.documentUsage(userId)) {
+            UUID id = (UUID) row[0];
+            usage.put(id, new long[]{count(row[1]), count(row[2])});
+            if (row[3] != null) {
+                averages.put(id, decimal(row[3]).setScale(1, RoundingMode.HALF_UP));
+            }
+        }
+
+        Map<UUID, long[]> outcomes = new HashMap<>();       // documentId -> [interviews, offers]
+        for (Object[] row : documentRepository.documentOutcomes(userId)) {
+            outcomes.put((UUID) row[0], new long[]{count(row[1]), count(row[2])});
+        }
+
+        Map<UUID, String> parseQuality = new HashMap<>();
+        for (Object[] row : documentRepository.documentParseQuality(userId)) {
+            parseQuality.put((UUID) row[0], (String) row[1]);
+        }
+
+        Map<UUID, List<String>> warnings = new HashMap<>();
+        for (Object[] row : documentRepository.documentParseWarnings(userId)) {
+            warnings.computeIfAbsent((UUID) row[0], k -> new ArrayList<>()).add((String) row[1]);
+        }
+
+        List<ResumeInsight> resumes = documentRepository
+                .findByUserIdOrderByKindAscCreatedAtDesc(userId).stream()
+                .filter(d -> d.getKind() == DocumentKind.RESUME)
+                .map(d -> {
+                    long[] use = usage.getOrDefault(d.getId(), EMPTY_PAIR);
+                    long[] out = outcomes.getOrDefault(d.getId(), EMPTY_PAIR);
+                    return new ResumeInsight(d.getId(), d.getLabel(), d.isDefault(),
+                            use[0], use[1], averages.get(d.getId()), out[0], out[1],
+                            parseQuality.get(d.getId()),
+                            warnings.getOrDefault(d.getId(), List.of()));
+                })
+                .toList();
+
+        long attributed = resumes.stream().mapToLong(ResumeInsight::applications).sum();
+        return new InsightsResponse(resumes,
+                skillCounts(documentRepository.recurringSkillGaps(userId, TOP_SKILLS)),
+                skillCounts(documentRepository.recurringSkillStrengths(userId, TOP_SKILLS)),
+                attributed,
+                documentRepository.countUnattributedApplications(userId));
+    }
+
+    private static List<SkillCount> skillCounts(List<Object[]> rows) {
+        return rows.stream().map(r -> new SkillCount((String) r[0], count(r[1]))).toList();
+    }
+
+    /** JDBC hands back whichever Number type it likes; normalise rather than cast blind. */
+    private static long count(Object value) {
+        return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    private static BigDecimal decimal(Object value) {
+        return value instanceof BigDecimal b ? b : new BigDecimal(value.toString());
     }
 
     // ------------------------------------------------------------- internals

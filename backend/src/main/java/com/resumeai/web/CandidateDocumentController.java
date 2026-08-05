@@ -33,6 +33,12 @@ public class CandidateDocumentController {
         return documentService.library();
     }
 
+    /** How each saved résumé has performed, derived from real screenings. */
+    @GetMapping("/insights")
+    public InsightsResponse insights() {
+        return documentService.insights();
+    }
+
     // ---------------------------------------------------------------- résumés
 
     @PostMapping(value = "/resumes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
